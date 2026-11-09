@@ -18,6 +18,9 @@ Este documento detalla el estado actual de las funciones del juego y la hoja de 
 | **Creador e Importador de Listas Propias**          |   👑 **PRO (Pago)**    | Permite personalizar el juego con bromas internas del grupo o temáticas a medida.                                                              |
 | **Botón QR para Invitar Amigos**                    | 🟢 **Normal (Gratis)** | _Motor de adquisición viral_: Siempre debe ser gratis para que cada jugador traiga más usuarios a la app.                                      |
 | **Acceso Maestro & Panel Ejecutivo CEO**            |    🛡️ **Admin CEO**    | Exclusivo mediante la clave privada (`CEO_CONFIDENCIAL.md`) para ver analíticas, cupones VIP y simular el paywall.                             |
+| **🤖 Atlas (Bot & Copiloto IA en Discord)**         |    🛡️ **Admin CEO**    | Asistente de inteligencia artificial 24/7 en Render con Gemini Flash Lite para asesoría ejecutiva y soporte a jugadores.                       |
+| **🛰️ Telemetría y Radar en Vivo (#metricas)**       |    🛡️ **Admin CEO**    | Captura de partidas, dispositivos (Android/iOS) y PWA enviadas a Discord `#metricas-imposter` y al panel CEO.                                  |
+| **🛡️ Blindaje de Seguridad de 7 Capas**             | 🟢 **Infraestructura** | Anti-fuerza bruta en PIN +18, tokens SHA-256 de doble nivel, rate-limit en pagos y sanitización anti-XSS.                                      |
 
 ---
 
@@ -124,6 +127,34 @@ A continuación se listan las mejoras recomendadas divididas por categoría, ind
     2. 🟡 **Binance Pay (USDT)**: Pay ID, Nickname, monto exacto en USDT y notificación instantánea por WhatsApp.
     3. 💳 **Tarjetas Internacionales**: Soporte para links directos de Whop / Stripe con Apple Pay y tarjetas de crédito/débito.
   - **Configuración Dinámica desde Panel CEO**: El CEO puede cambiar sus números, banco, tasa y Pay ID en cualquier momento desde su teléfono sin tocar código.
+
+#### 12. 🤖 Atlas — Copiloto de IA y Bot Oficial de Discord ✅
+
+- **Estado**: **🟢 Implementado y Activo**
+- **Clasificación**: **🛡️ Admin CEO & Comunidad**
+- **¿En qué consiste?**:
+  - Desplegado en **Render Cloud** 24/7 con pulso **Keep-Alive** anti-suspensión.
+  - Motor de triple inteligencia artificial: **Google Gemini Flash Lite** (principal), **OpenRouter LLaMA 3.3 / DeepSeek** (respaldo) y **Groq Cloud**.
+  - Canal `#despacho-ceo`: Conversación directa y honesta con el CEO con inyección del estado real del producto en vivo.
+  - Canales `#soporte-o-dudas` y `#fundador-vip` para atención automática a clientes.
+
+#### 13. 🛰️ Radar de Telemetría en Vivo (Nivel A & Nivel B) ✅
+
+- **Estado**: **🟢 Implementado y Activo**
+- **Clasificación**: **🛡️ Admin CEO**
+- **¿En qué consiste?**:
+  - **Nivel A**: Notificaciones enriquecidas inmediatas en Discord `#metricas-imposter` ante cada partida iniciada, concluida o PWA instalada.
+  - **Nivel B**: Pestaña **Métricas** en el panel CEO del juego con desglose por sistema operativo (**Android**, **iPhone / iOS**, **Desktop**), top de categorías y feed reciente.
+  - Cero PII, cero recolección de IPs y ejecución asíncrona ("fire-and-forget") con 0 ms de retraso en celulares.
+
+#### 14. 🛡️ Blindajes de Seguridad Avanzados ✅
+
+- **Estado**: **🟢 Implementado y Activo**
+- **Clasificación**: **🟢 Seguridad e Infraestructura**
+- **¿En qué consiste?**:
+  - **Anti-Fuerza Bruta en PIN Parental (+18)**: Bloqueo de teclado numérico por 60 segundos tras 5 intentos fallidos.
+  - **Anti-Spam Rate Limiting en Pagos**: Máximo 3 envíos de comprobantes cada 2 minutos en `coupon-server.ts`.
+  - **Sanitización Estricta Anti-XSS**: Purga de caracteres `< >` y validación de referencias bancarias.
 
 ---
 

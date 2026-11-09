@@ -1,6 +1,6 @@
 # 🛡️ Arquitectura de Seguridad y Blindaje — Imposter
 
-Este documento detalla las **4 capas de seguridad (Blindajes)** implementadas en **Imposter** para proteger la aplicación en producción (`https://imposter.manu-07games.workers.dev`) contra inspección de código, manipulación de almacenamiento local, inyección de datos maliciosos y clonación mediante _iframes_.
+Este documento detalla las **7 capas de seguridad (Blindajes)** implementadas en **Imposter** para proteger la aplicación en producción (`https://imposter.manu-07games.workers.dev`) contra inspección de código, manipulación de almacenamiento local, inyección de datos maliciosos, clonación mediante _iframes_, fuerza bruta y ataques de saturación en pasarelas de pago.
 
 ---
 
@@ -79,6 +79,58 @@ Cloudflare aplica automáticamente las siguientes cabeceras de grado empresarial
 | `X-Content-Type-Options`  | `nosniff`                                                     | Bloquea el _MIME-sniffing_ del navegador para evitar ejecución de archivos disfrazados.       |
 | `Referrer-Policy`         | `strict-origin-when-cross-origin`                             | Protege la privacidad de las rutas internas al navegar hacia enlaces externos.                |
 | `Permissions-Policy`      | `camera=(), microphone=(), geolocation=(), payment=()`        | Bloquea el acceso a sensores sensibles del teléfono que el juego no necesita.                 |
+
+---
+
+## 🔞 Blindaje 5: Protección Anti-Fuerza Bruta en PIN Parental (+18)
+
+### **Amenaza mitigada**
+
+El modo "Fiesta +18" contiene 60 palabras y conceptos para adultos protegidos mediante un PIN numérico de 4 dígitos. Sin una barrera de intentos, un menor de edad o un script podría probar combinaciones secuenciales (`0000` a `9999`) rápidamente hasta desbloquearlo.
+
+### **Solución implementada ([`src/routes/index.tsx`](./src/routes/index.tsx))**
+
+- **Contador de Fallos en Memoria**: Cada intento erróneo incrementa el contador `pinFailedAttempts`.
+- **Enfriamiento Obligatorio de 60 Segundos**: Al llegar a **5 intentos fallidos consecutivos**, el teclado numérico interactivo se desactiva por completo durante **60 segundos**.
+- **Indicador Visual de Cooldown**: La pantalla muestra un aviso en color ámbar con la cuenta regresiva en segundos restantes antes de permitir un nuevo intento.
+
+---
+
+## 🚦 Blindaje 6: Anti-Spam Rate Limiting en Pasarela de Pagos
+
+### **Amenaza mitigada**
+
+Cualquier usuario malintencionado o bot podría intentar enviar miles de solicitudes ficticias de comprobantes de pago por segundo al servidor, inundando la base de datos de pagos pendientes y saturando el canal privado de alertas de Discord del CEO.
+
+### **Solución implementada (`submitPaymentProofServerFn` en [`src/lib/coupon-server.ts`](./src/lib/coupon-server.ts))**
+
+- **Control de Frecuencia por Método y Plan**: El backend rastrea una ventana deslizante de tiempo en memoria para cada solicitud.
+- **Límite Estricto**: Se permite un máximo de **3 envíos de comprobantes cada 2 minutos**.
+- **Respuesta Preventiva**: Si se excede la cota, el servidor rechaza la solicitud de inmediato con el mensaje _"Has enviado varios intentos recientemente. Espera 2 minutos antes de reenviar"_, sin despachar webhooks ni generar registros basura.
+
+---
+
+## 🧼 Blindaje 7: Sanitización Estricta Anti-XSS en Cobros y Discord
+
+### **Amenaza mitigada**
+
+Un atacante podría ingresar código JavaScript o etiquetas maliciosas (`<script>`, `<iframe src=...>`, `javascript:...`) en los campos de "Nombre del Cliente", "N° de Referencia Bancaria" o "Contacto de Discord" para intentar ejecutar código en el navegador del CEO o corromper los Webhooks de Discord.
+
+### **Solución implementada ([`src/lib/coupon-server.ts`](./src/lib/coupon-server.ts))**
+
+- **Purga de Caracteres Peligrosos**: Se eliminan todos los caracteres `<` y `>` de todos los campos de texto libre antes de su persistencia.
+- **Validación Alfanumérica en Referencias**: Los números de referencia bancaria se limpian con una expresión regular estricta (`/[^a-zA-Z0-9_\-\s]/g`), admitiendo únicamente caracteres seguros.
+- **Truncado Defensivo**: Longitud máxima de 40 caracteres por campo para prevenir desbordamientos o deformaciones visuales en los embeds de Discord.
+
+---
+
+## 🛰️ Privacidad Absoluta en el Sistema de Telemetría ([`src/lib/telemetry.ts`](./src/lib/telemetry.ts))
+
+Para garantizar el cumplimiento de normativas de privacidad y proteger la identidad de los jugadores:
+
+1. **Cero PII (Personally Identifiable Information)**: La telemetría solo recopila datos anónimos de la partida (categoría jugada, conteo de inocentes/impostores, rol del ganador y tipo general de dispositivo: Android, iOS o Desktop).
+2. **Cero Almacenamiento de IPs**: Ni el servidor TanStack Start ni el bot Atlas en Render almacenan direcciones IP ni identificadores únicos de hardware.
+3. **Mecánica Asíncrona "Fire-and-Forget"**: Los reportes se envían en segundo plano mediante `catch` silencioso; si hay cortes de conexión, el juego continúa al 100% sin pausas ni interrupciones para los jugadores.
 
 ---
 
