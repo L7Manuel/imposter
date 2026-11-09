@@ -821,27 +821,45 @@ function playBeep(duration: number, freq: number, soundEnabled: boolean) {
   }
 }
 
-function playPop(soundEnabled: boolean) {
+function playPop(soundEnabled: boolean, haptic: boolean = true) {
+  // Micropulso háptico de 10ms en Android para sensación de switch arcade
+  if (haptic && typeof navigator !== "undefined" && navigator.vibrate) {
+    try {
+      navigator.vibrate(10);
+    } catch {
+      /* ignore */
+    }
+  }
+
   if (!soundEnabled) return;
   try {
     const ctx = unlockAudio();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
 
-    // Onda triangular con armónicos cálidos ideales para altavoces móviles de iPhone y Android
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(740, now);
-    osc.frequency.exponentialRampToValueAtTime(260, now + 0.075);
+    // 1. Capa Mecánica Transitoria (Chasquido de switch arcade de 12ms)
+    const oscClick = ctx.createOscillator();
+    const gainClick = ctx.createGain();
+    oscClick.type = "sine";
+    oscClick.frequency.setValueAtTime(2400, now);
+    oscClick.frequency.exponentialRampToValueAtTime(800, now + 0.012);
+    gainClick.gain.setValueAtTime(0.35, now);
+    gainClick.gain.exponentialRampToValueAtTime(0.001, now + 0.014);
+    oscClick.connect(gainClick).connect(ctx.destination);
+    oscClick.start(now);
+    oscClick.stop(now + 0.015);
 
-    // Volumen táctil al 45% con caída exponencial limpia
-    gain.gain.setValueAtTime(0.45, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.08);
+    // 2. Capa de Resonancia Cálida (Cuerpo acústico táctil de 55ms)
+    const oscBody = ctx.createOscillator();
+    const gainBody = ctx.createGain();
+    oscBody.type = "triangle";
+    oscBody.frequency.setValueAtTime(360, now);
+    oscBody.frequency.exponentialRampToValueAtTime(130, now + 0.055);
+    gainBody.gain.setValueAtTime(0.42, now);
+    gainBody.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    oscBody.connect(gainBody).connect(ctx.destination);
+    oscBody.start(now);
+    oscBody.stop(now + 0.06);
   } catch {
     /* ignore */
   }
@@ -851,6 +869,13 @@ let scanOsc: OscillatorNode | null = null;
 let scanGain: GainNode | null = null;
 
 function startScanSound(soundEnabled: boolean) {
+  if (typeof navigator !== "undefined" && navigator.vibrate) {
+    try {
+      navigator.vibrate([20, 60, 25, 60, 30, 60]);
+    } catch {
+      /* ignore */
+    }
+  }
   if (!soundEnabled) return;
   try {
     const ctx = unlockAudio();
@@ -860,9 +885,10 @@ function startScanSound(soundEnabled: boolean) {
     scanOsc = ctx.createOscillator();
     scanGain = ctx.createGain();
     scanOsc.type = "sawtooth";
-    scanOsc.frequency.setValueAtTime(160, now);
-    scanGain.gain.setValueAtTime(0.08, now);
-    scanGain.gain.linearRampToValueAtTime(0.14, now + 0.15);
+    scanOsc.frequency.setValueAtTime(140, now);
+    scanOsc.frequency.exponentialRampToValueAtTime(320, now + 0.5);
+    scanGain.gain.setValueAtTime(0.06, now);
+    scanGain.gain.linearRampToValueAtTime(0.16, now + 0.3);
     scanOsc.connect(scanGain).connect(ctx.destination);
     scanOsc.start(now);
   } catch {
@@ -877,6 +903,124 @@ function stopScanSound() {
       scanOsc.disconnect();
       scanOsc = null;
     }
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(0);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Alerta íntima y sutil de suspenso (Acorde oscuro en baja frecuencia).
+ * Suena ÚNICAMENTE si eres el Impostor sin alertar a nadie en la mesa.
+ */
+function playImpostorReveal(soundEnabled: boolean) {
+  if (typeof navigator !== "undefined" && navigator.vibrate) {
+    try {
+      navigator.vibrate([40, 50, 70]);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!soundEnabled) return;
+  try {
+    const ctx = unlockAudio();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    [110, 130.81].forEach((freq) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.92, now + 0.45);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.46);
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Impacto dramático de baja frecuencia para la transición al veredicto.
+ */
+function playDramaticImpact(soundEnabled: boolean) {
+  if (typeof navigator !== "undefined" && navigator.vibrate) {
+    try {
+      navigator.vibrate([40, 60, 50]);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!soundEnabled) return;
+  try {
+    const ctx = unlockAudio();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(95, now);
+    osc.frequency.exponentialRampToValueAtTime(32, now + 0.35);
+    gain.gain.setValueAtTime(0.48, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.38);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Tensión sonora en los últimos 15 segundos del debate (Latido de corazón + Reloj).
+ */
+function playDebateTension(timeLeft: number, soundEnabled: boolean, vibrationEnabled: boolean) {
+  if (vibrationEnabled && typeof navigator !== "undefined" && navigator.vibrate) {
+    try {
+      if (timeLeft <= 5) {
+        navigator.vibrate([20, 40, 20]);
+      } else {
+        navigator.vibrate(12);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!soundEnabled) return;
+  try {
+    const ctx = unlockAudio();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // Latido de corazón sutil
+    const oscHeart = ctx.createOscillator();
+    const gainHeart = ctx.createGain();
+    oscHeart.type = "sine";
+    const heartFreq = timeLeft <= 5 ? 85 : 68;
+    oscHeart.frequency.setValueAtTime(heartFreq, now);
+    oscHeart.frequency.exponentialRampToValueAtTime(35, now + 0.08);
+    const heartVol = timeLeft <= 5 ? 0.38 : 0.22;
+    gainHeart.gain.setValueAtTime(heartVol, now);
+    gainHeart.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+    oscHeart.connect(gainHeart).connect(ctx.destination);
+    oscHeart.start(now);
+    oscHeart.stop(now + 0.09);
+
+    // Tic-tac mecánico de reloj
+    const oscTick = ctx.createOscillator();
+    const gainTick = ctx.createGain();
+    oscTick.type = "triangle";
+    oscTick.frequency.setValueAtTime(timeLeft <= 5 ? 1600 : 1200, now + 0.04);
+    gainTick.gain.setValueAtTime(timeLeft <= 5 ? 0.28 : 0.15, now + 0.04);
+    gainTick.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    oscTick.connect(gainTick).connect(ctx.destination);
+    oscTick.start(now + 0.04);
+    oscTick.stop(now + 0.07);
   } catch {
     /* ignore */
   }
@@ -1000,6 +1144,7 @@ const btnDanger = `${btn} bg-destructive text-destructive-foreground glow-danger
 function Game() {
   const [phase, setPhase] = useState<Phase>("setup");
   const [setupStep, setSetupStep] = useState<1 | 2>(1);
+  const [isResolvingResult, setIsResolvingResult] = useState<boolean>(false);
 
   // Config State (SSR-safe defaults, hydrated in useEffect)
   const [names, setNames] = useState<string[]>([
@@ -2300,15 +2445,18 @@ function Game() {
     return n ? n.trim().charAt(0).toUpperCase() || String(idx + 1) : String(idx + 1);
   };
 
-  // Timer effect
+  // Timer effect (Tensión sutil de escape room en los últimos 15 segundos)
   useEffect(() => {
     if (phase !== "discuss" || paused || timeLeft <= 0) return;
     const t = setTimeout(() => {
       const n = timeLeft - 1;
-      if (n <= 5) playBeep(n === 0 ? 0.8 : 0.12, n === 0 ? 440 : 880, soundEnabled);
-      if (vibrationEnabled && navigator.vibrate) {
-        if (n === 0) navigator.vibrate([400, 150, 400, 150, 600]);
-        else if (n <= 5) navigator.vibrate(80);
+      if (n <= 15 && n > 0) {
+        playDebateTension(n, soundEnabled, vibrationEnabled);
+      } else if (n === 0) {
+        playDramaticImpact(soundEnabled);
+        if (vibrationEnabled && typeof navigator !== "undefined" && navigator.vibrate) {
+          navigator.vibrate([300, 150, 450]);
+        }
       }
       setTimeLeft(n);
     }, 1000);
@@ -2422,7 +2570,10 @@ function Game() {
     setIsHolding(true);
     setHasSeenRole(true);
     startScanSound(soundEnabled);
-    if (vibrationEnabled && navigator.vibrate) navigator.vibrate(60);
+    // Alerta íntima de suspenso si eres el Impostor
+    if (impostors.includes(turn)) {
+      playImpostorReveal(soundEnabled);
+    }
   };
 
   const handleEndHold = () => {
@@ -2445,6 +2596,16 @@ function Game() {
     }
   };
 
+  const resolveRoundWithSuspense = (isVictory: boolean) => {
+    setIsResolvingResult(true);
+    playDramaticImpact(soundEnabled);
+    setTimeout(() => {
+      setPhase("result");
+      setIsResolvingResult(false);
+      playFanfare(isVictory, soundEnabled);
+    }, 420);
+  };
+
   const handleVoteConfirmation = (accused: number) => {
     playPop(soundEnabled);
     const isImp = impostors.includes(accused);
@@ -2464,8 +2625,7 @@ function Game() {
           category: playedCategory || category,
         });
       }
-      playFanfare(true, soundEnabled);
-      setPhase("result");
+      resolveRoundWithSuspense(true);
     } else if (isImp) {
       // Impostor was caught! Give chance to guess the secret word
       setShowImpostorGuessModal(true);
@@ -2484,8 +2644,7 @@ function Game() {
           category: playedCategory || category,
         });
       }
-      playFanfare(false, soundEnabled);
-      setPhase("result");
+      resolveRoundWithSuspense(false);
     }
   };
 
@@ -2505,8 +2664,7 @@ function Game() {
           category: playedCategory || category,
         });
       }
-      playFanfare(false, soundEnabled);
-      setPhase("result");
+      resolveRoundWithSuspense(false);
     } else {
       const updatedCaught =
         accusedIndex !== null ? [...caughtImpostors, accusedIndex] : caughtImpostors;
@@ -2528,8 +2686,7 @@ function Game() {
             category: playedCategory || category,
           });
         }
-        playFanfare(true, soundEnabled);
-        setPhase("result");
+        resolveRoundWithSuspense(true);
       } else {
         // Still more impostors to catch! Stay in vote phase
         playPop(soundEnabled);
@@ -5963,13 +6120,19 @@ function Game() {
 
             {!isHolding ? (
               <div className="relative flex flex-col items-center gap-3">
-                {/* Concentric radar rings */}
-                <div className="relative flex h-24 w-24 items-center justify-center">
+                {/* Concentric radar rings & biometric target */}
+                <div className="relative flex h-28 w-28 items-center justify-center">
+                  {/* Outer pulsating sonar aura */}
                   <div className="absolute inset-0 rounded-full bg-primary/10 animate-pulse-glow" />
-                  <div className="absolute inset-2 rounded-full border border-primary/30 animate-ping opacity-25" />
+                  {/* Subtle ping pulse */}
+                  <div className="absolute -inset-1 rounded-full border border-primary/20 animate-ping opacity-25" />
+                  {/* Rotating dashed tactical reticle */}
+                  <div className="absolute inset-1 rounded-full border border-dashed border-primary/35 animate-spin [animation-duration:12s]" />
+                  {/* Inner glowing ring */}
+                  <div className="absolute inset-3 rounded-full border border-primary/40 shadow-[0_0_15px_rgba(234,179,8,0.2)]" />
                   <Fingerprint
-                    size={60}
-                    className="relative z-10 text-primary transition-transform group-hover:scale-105"
+                    size={58}
+                    className="relative z-10 text-primary transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>
                 <span className="font-display tracking-wider text-base text-foreground">
@@ -6464,6 +6627,18 @@ function Game() {
             </div>
           </div>
         </section>
+      )}
+
+      {/* Cinematic Suspense Blackout Overlay */}
+      {isResolvingResult && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-200">
+          <div className="flex flex-col items-center gap-4 animate-pulse">
+            <div className="h-14 w-14 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+            <span className="font-display text-2xl tracking-widest text-primary drop-shadow-[0_0_20px_rgba(234,179,8,0.6)]">
+              VEREDICTO FINAL
+            </span>
+          </div>
+        </div>
       )}
     </main>
   );
