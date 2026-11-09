@@ -9,6 +9,7 @@
  */
 
 import { Client, GatewayIntentBits, Partials, ActivityType } from "discord.js";
+import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -545,6 +546,25 @@ Eres su socio y copiloto técnico/estratégico: evalúa con sinceridad la fase d
 process.on("unhandledRejection", (err) => {
   console.error("Unhandled Rejection:", err);
 });
+
+// Servidor HTTP ligero para Render/Koyeb (Health-Check 24/7)
+const PORT = process.env.PORT || 3000;
+http
+  .createServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        status: "online",
+        bot: "Atlas",
+        version: "1.0.0",
+        uptime: Math.round(process.uptime()),
+        timestamp: new Date().toISOString(),
+      }),
+    );
+  })
+  .listen(PORT, () => {
+    console.log(`🌐 Servidor de monitoreo HTTP activo en el puerto ${PORT}`);
+  });
 
 client.login(DISCORD_BOT_TOKEN).catch((err) => {
   console.error("❌ Error al iniciar sesión en Discord:", err.message);
