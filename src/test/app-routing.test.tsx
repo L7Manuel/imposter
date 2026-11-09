@@ -10,6 +10,7 @@ import {
   sha256,
   verifyAccessCode,
 } from "@/lib/security";
+import { detectUserDevice } from "@/lib/telemetry";
 import { routeTree } from "@/routeTree.gen";
 
 // Match routes without running loaders or rendering: loaders may need a server or
@@ -66,5 +67,9 @@ describe("Security shields", () => {
     expect(result).toEqual({
       "scriptAnime/script": ["img onerror=1Naruto", "Goku", "Luffy"],
     });
+  });
+
+  it("detects user execution environments correctly for telemetry", () => {
+    expect(typeof detectUserDevice()).toBe("string");
   });
 });

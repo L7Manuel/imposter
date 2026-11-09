@@ -20,6 +20,7 @@ declare global {
   var __imposterDiscordWebhookUrl: string | undefined;
   var __imposterPaymentConfig: PaymentConfig | undefined;
   var __imposterPendingPayments: Map<string, PendingPayment> | undefined;
+  var __imposterPaymentRateLimitMap: Map<string, number[]> | undefined;
 }
 
 function getServerCouponMap(): Map<string, { activatedAt: number; couponNumber: number }> {
@@ -264,10 +265,36 @@ export const submitPaymentProofServerFn = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data }) => {
+    // 🛡️ Blindaje Anti-Spam: Rate limiting estricto de envíos de comprobantes (máximo 3 por cada 2 minutos)
+    if (!globalThis.__imposterPaymentRateLimitMap) {
+      globalThis.__imposterPaymentRateLimitMap = new Map();
+    }
+    const clientKey = `${data.method}-${data.plan}`;
+    const now = Date.now();
+    const history = globalThis.__imposterPaymentRateLimitMap.get(clientKey) || [];
+    const recent = history.filter((t) => now - t < 120000); // 2 minutos
+    if (recent.length >= 3) {
+      return {
+        success: false,
+        paymentId: "",
+        error: "Has enviado varios intentos recientemente. Espera 2 minutos antes de reenviar.",
+      };
+    }
+    recent.push(now);
+    globalThis.__imposterPaymentRateLimitMap.set(clientKey, recent);
+
     const store = getServerPaymentsMap();
-    const cleanName = data.customerName.trim().slice(0, 50) || "Jugador";
-    const cleanRef = data.reference.trim().slice(0, 50) || "S/R";
-    const cleanDiscord = data.discordContact ? data.discordContact.trim().slice(0, 50) : undefined;
+    // 🛡️ Sanitización estricta de entradas (Anti-XSS / Inyecciones)
+    const cleanName = data.customerName.replace(/[<>]/g, "").trim().slice(0, 40) || "Jugador";
+    const cleanRef =
+      data.reference
+        .replace(/[<>]/g, "")
+        .replace(/[^a-zA-Z0-9_\-\s]/g, "")
+        .trim()
+        .slice(0, 40) || "S/R";
+    const cleanDiscord = data.discordContact
+      ? data.discordContact.replace(/[<>]/g, "").trim().slice(0, 40)
+      : undefined;
     const id = `PAY-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
 
     const payment: PendingPayment = {

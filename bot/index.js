@@ -8,7 +8,15 @@
  * - OpenRouter (Modelos gratuitos: LLaMA 3.3, DeepSeek) [Opcional]
  */
 
-import { Client, GatewayIntentBits, Partials, ActivityType } from "discord.js";
+import {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  ActivityType,
+  EmbedBuilder,
+  ChannelType,
+  PermissionFlagsBits,
+} from "discord.js";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -102,6 +110,66 @@ const client = new Client({
 
 // Historial breve en memoria por canal/usuario para contexto (últimos 8 mensajes)
 const conversationMemory = new Map();
+
+// 🛰️ Radar de Métricas en Vivo de Atlas (Eventos en Tiempo Real)
+const botLiveMetrics = {
+  roundsStarted: 0,
+  roundsCompleted: 0,
+  pwaInstalls: 0,
+  paywallViews: 0,
+  categoryCounts: {},
+  deviceCounts: { android: 0, ios: 0, desktop: 0 },
+  recentEvents: [],
+  lastEventTime: null,
+};
+
+async function sendMetricsToDiscordChannel(title, description, color, fields = []) {
+  if (!client.isReady()) return false;
+  try {
+    for (const guild of client.guilds.cache.values()) {
+      let channel = guild.channels.cache.find(
+        (c) =>
+          c.isTextBased() &&
+          (c.name === "metricas-imposter" ||
+            c.name === "métricas-imposter" ||
+            c.name.includes("metricas") ||
+            c.name.includes("radar")),
+      );
+
+      // Si no existe y el bot tiene permisos, lo creamos automáticamente
+      if (!channel && guild.members.me?.permissions?.has(PermissionFlagsBits.ManageChannels)) {
+        try {
+          channel = await guild.channels.create({
+            name: "metricas-imposter",
+            type: ChannelType.GuildText,
+            topic: "Radar de telemetría y métricas en vivo de Imposter 📊",
+          });
+          logDebug("✨ Canal #metricas-imposter auto-creado con éxito en:", guild.name);
+        } catch (e) {
+          logDebug("No se pudo auto-crear #metricas-imposter:", e.message);
+        }
+      }
+
+      if (channel) {
+        const embed = new EmbedBuilder()
+          .setTitle(title)
+          .setDescription(description)
+          .setColor(color)
+          .setFooter({ text: "Imposter Radar • Atlas Live Telemetry" })
+          .setTimestamp();
+
+        for (const f of fields) {
+          embed.addFields({ name: f.name, value: String(f.value), inline: f.inline ?? true });
+        }
+        await channel.send({ embeds: [embed] });
+        return true;
+      }
+    }
+  } catch (err) {
+    logDebug("⚠️ Error al publicar en #metricas-imposter:", err.message);
+  }
+  return false;
+}
 
 function getMemoryKey(message) {
   return message.guildId ? `${message.guildId}-${message.channelId}` : `dm-${message.author.id}`;
@@ -452,6 +520,31 @@ client.once("clientReady", async () => {
   if (GEMINI_API_KEY) {
     await discoverWorkingGeminiModel();
   }
+
+  // Verificar o auto-crear canal de telemetría #metricas-imposter
+  try {
+    for (const guild of client.guilds.cache.values()) {
+      let metricChannel = guild.channels.cache.find(
+        (c) => c.name === "metricas-imposter" || c.name === "métricas-imposter",
+      );
+      if (
+        !metricChannel &&
+        guild.members.me?.permissions?.has(PermissionFlagsBits.ManageChannels)
+      ) {
+        metricChannel = await guild.channels.create({
+          name: "metricas-imposter",
+          type: ChannelType.GuildText,
+          topic: "Radar de telemetría y métricas en vivo de Imposter 📊",
+        });
+        logDebug(`✨ Canal #metricas-imposter auto-creado en ${guild.name}`);
+      }
+      if (metricChannel) {
+        logDebug(`📊 Canal de métricas listo: #${metricChannel.name} en ${guild.name}`);
+      }
+    }
+  } catch (err) {
+    logDebug("⚠️ No se pudo verificar o auto-crear #metricas-imposter al inicio:", err.message);
+  }
 });
 
 client.on("messageCreate", async (message) => {
@@ -508,13 +601,23 @@ client.on("messageCreate", async (message) => {
 
   const userTag = message.author.tag || message.author.username;
 
-  // Si estamos en el despacho del CEO, inyectamos contexto ejecutivo exclusivo
+  // Si estamos en el despacho del CEO, inyectamos contexto ejecutivo exclusivo y métricas en vivo
   let promptWithContext = `[Mensaje de ${userTag}]: ${cleanContent}`;
   if (isCEOChannel) {
     promptWithContext = `[CANAL PRIVADO — DESPACHO CON TIRLEM]:
 Estás hablando a solas con Tirlem (creador de Imposter).
 Mantén tu personalidad auténtica: sereno, analítico, directo, con los pies en la tierra y CERO adulación.
 Eres su socio y copiloto técnico/estratégico: evalúa con sinceridad la fase del producto (estamos en el día cero de validación, sin ventas masivas ni humo), analiza pros y contras de cada decisión y enfócate en la validación real del juego con usuarios reales.
+
+[DATOS REALES DEL RADAR DE MÉTRICAS]:
+- Partidas iniciadas registradas: ${botLiveMetrics.roundsStarted}
+- Partidas completadas: ${botLiveMetrics.roundsCompleted}
+- PWA Instaladas: ${botLiveMetrics.pwaInstalls}
+- Vistas a Checkout/Pases: ${botLiveMetrics.paywallViews}
+- Dispositivos: Android: ${botLiveMetrics.deviceCounts.android}, iOS: ${botLiveMetrics.deviceCounts.ios}, PC/Web: ${botLiveMetrics.deviceCounts.desktop}
+- Categorías jugadas: ${JSON.stringify(botLiveMetrics.categoryCounts)}
+- Último evento: ${botLiveMetrics.lastEventTime || "Aún sin eventos hoy"}
+(Si Tirlem te pregunta por estadísticas, jugadores o métricas, dale estos números reales con total transparencia).
 
 [Mensaje de Tirlem]: ${cleanContent}`;
   } else if (isFundadorChannel) {
@@ -547,18 +650,118 @@ process.on("unhandledRejection", (err) => {
   console.error("Unhandled Rejection:", err);
 });
 
-// Servidor HTTP ligero para Render/Koyeb (Health-Check 24/7)
+// Servidor HTTP ligero para Render/Koyeb (Health-Check 24/7 y Receptor de Métricas)
 const PORT = process.env.PORT || 3000;
 http
   .createServer((req, res) => {
+    // Cabeceras CORS para permitir telemetría desde la web y PWA
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    if (req.method === "POST" && (req.url === "/api/telemetry" || req.url === "/api/metrics")) {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk;
+        if (body.length > 25000) req.destroy();
+      });
+      req.on("end", async () => {
+        try {
+          const data = JSON.parse(body || "{}");
+          const deviceStr = data.device || "Desconocido";
+          const nowStr = new Date().toLocaleTimeString();
+          botLiveMetrics.lastEventTime = `${nowStr} (${deviceStr})`;
+
+          const isAndroid = /android/i.test(deviceStr);
+          const isIos = /iphone|ipad|ios/i.test(deviceStr);
+          if (isAndroid) botLiveMetrics.deviceCounts.android++;
+          else if (isIos) botLiveMetrics.deviceCounts.ios++;
+          else botLiveMetrics.deviceCounts.desktop++;
+
+          if (data.type === "round_start") {
+            botLiveMetrics.roundsStarted++;
+            const cat = data.category || "Aleatoria";
+            botLiveMetrics.categoryCounts[cat] = (botLiveMetrics.categoryCounts[cat] || 0) + 1;
+
+            const fields = [
+              { name: "📁 Categoría", value: `**${cat}**`, inline: true },
+              { name: "👥 Jugadores", value: `${data.playerCount ?? 4} personas`, inline: true },
+              { name: "🕵️‍♂️ Impostores", value: `${data.impostorCount ?? 1}`, inline: true },
+              { name: "📱 Dispositivo", value: `**${deviceStr}**`, inline: true },
+            ];
+            if (data.isAdult) {
+              fields.push({ name: "🔞 Modo Picante", value: "Activado (+18)", inline: true });
+            }
+            if (data.isJester) {
+              fields.push({ name: "🃏 El Bufón", value: "En juego", inline: true });
+            }
+
+            await sendMetricsToDiscordChannel(
+              "🎮 ¡Nueva Partida Iniciada!",
+              `Se acaba de iniciar una partida presencial en **${deviceStr}**.`,
+              0x3b82f6,
+              fields,
+            );
+          } else if (data.type === "round_finish") {
+            botLiveMetrics.roundsCompleted++;
+            const winnerName =
+              data.winner === "innocents"
+                ? "Inocentes 😇"
+                : data.winner === "jester"
+                  ? "El Bufón 🃏"
+                  : "Impostores 🕵️‍♂️";
+
+            await sendMetricsToDiscordChannel(
+              "🏆 Partida Concluida con Éxito",
+              `Partida terminada. Ganador: **${winnerName}**.`,
+              0x10b981,
+              [
+                { name: "👑 Ganador", value: winnerName, inline: true },
+                { name: "📁 Categoría", value: data.category || "Aleatoria", inline: true },
+                { name: "📱 Dispositivo", value: deviceStr, inline: true },
+              ],
+            );
+          } else if (data.type === "pwa_install") {
+            botLiveMetrics.pwaInstalls++;
+            await sendMetricsToDiscordChannel(
+              "📱 ¡PWA Instalada en Pantalla de Inicio!",
+              `Un jugador añadió **Imposter** como app nativa a su teléfono.`,
+              0x8b5cf6,
+              [
+                { name: "📱 Dispositivo", value: `**${deviceStr}**`, inline: true },
+                { name: "⭐ Estado", value: "Acceso Rápido Nativo", inline: true },
+              ],
+            );
+          } else if (data.type === "paywall_view") {
+            botLiveMetrics.paywallViews++;
+          }
+
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true, metrics: botLiveMetrics }));
+        } catch {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Invalid JSON" }));
+        }
+      });
+      return;
+    }
+
+    // Default GET status
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
         status: "online",
         bot: "Atlas",
-        version: "1.0.0",
+        version: "1.1.0",
         uptime: Math.round(process.uptime()),
         timestamp: new Date().toISOString(),
+        metrics: botLiveMetrics,
       }),
     );
   })

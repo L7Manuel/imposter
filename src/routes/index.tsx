@@ -48,6 +48,8 @@ import {
   Loader2,
   CheckCircle2,
   MessageSquare,
+  Activity,
+  RefreshCw,
 } from "lucide-react";
 import { acquireScreenWakeLock, releaseScreenWakeLock } from "@/lib/wake-lock";
 import { ConfettiCanvas } from "@/lib/confetti";
@@ -82,6 +84,8 @@ import {
   getPendingPaymentsServerFn,
   reviewPaymentServerFn,
 } from "@/lib/coupon-server";
+import { trackGameEvent } from "@/lib/telemetry";
+import { getGlobalMetricsServerFn, GlobalMetrics } from "@/lib/telemetry-server";
 import {
   PaymentConfig,
   DEFAULT_PAYMENT_CONFIG,
@@ -1114,6 +1118,12 @@ function Game() {
   const [enteredPin, setEnteredPin] = useState("");
   const [pinError, setPinError] = useState(false);
   const [showPinHint, setShowPinHint] = useState(false);
+  const [pinFailedAttempts, setPinFailedAttempts] = useState<number>(0);
+  const [pinLockoutUntil, setPinLockoutUntil] = useState<number>(0);
+
+  // Global Telemetry State (Radar CEO)
+  const [globalMetrics, setGlobalMetrics] = useState<GlobalMetrics | null>(null);
+  const [loadingGlobalMetrics, setLoadingGlobalMetrics] = useState<boolean>(false);
 
   const [custom, setCustom] = useState<Record<string, string[]>>({});
   const [category, setCategory] = useState("Aleatoria");
@@ -1454,6 +1464,7 @@ function Game() {
       ...prev,
       paywallViews: prev.paywallViews + 1,
     }));
+    void trackGameEvent({ type: "paywall_view", planId: selectedPlan });
     setShowProModal(true);
   };
 
@@ -1751,6 +1762,28 @@ function Game() {
     const interval = setInterval(() => {
       void refreshCeoPayments();
     }, 5000);
+    return () => clearInterval(interval);
+  }, [showCeoModal, ceoModalTab]);
+
+  const refreshGlobalMetrics = async (reset = false) => {
+    setLoadingGlobalMetrics(true);
+    try {
+      const res = await getGlobalMetricsServerFn({ data: { reset } });
+      setGlobalMetrics(res);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoadingGlobalMetrics(false);
+    }
+  };
+
+  // Sincronizar telemetría global en vivo para el CEO
+  useEffect(() => {
+    if (!showCeoModal || ceoModalTab !== "metrics") return;
+    void refreshGlobalMetrics();
+    const interval = setInterval(() => {
+      void refreshGlobalMetrics();
+    }, 6000);
     return () => clearInterval(interval);
   }, [showCeoModal, ceoModalTab]);
 
@@ -2164,6 +2197,7 @@ function Game() {
       const outcome = await promptPwaInstall();
       if (outcome === "accepted") {
         setShowInstallModal(false);
+        void trackGameEvent({ type: "pwa_install" });
         return;
       }
     }
@@ -2342,6 +2376,16 @@ function Game() {
     setWinReason("");
     setShowImpostorGuessModal(false);
 
+    // 🛰️ Telemetría en vivo (Avisa a Discord #metricas-imposter y al Radar CEO)
+    void trackGameEvent({
+      type: "round_start",
+      category: chosenCat,
+      playerCount: names.length,
+      impostorCount: chosenImpostors.length,
+      isAdult: chosenCat === ADULT_CATEGORY,
+      isJester: assignedJester !== null,
+    });
+
     setPhase("reveal");
   };
 
@@ -2385,6 +2429,11 @@ function Game() {
         `¡Cayeron en su trampa! ${getPlayerName(accused)} era el Bufón y logró que el grupo lo votara.`,
       );
       trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
+      void trackGameEvent({
+        type: "round_finish",
+        winner: "jester",
+        category: playedCategory || category,
+      });
       playFanfare(true, soundEnabled);
       setPhase("result");
     } else if (isImp) {
@@ -2398,6 +2447,11 @@ function Game() {
       );
       updateScore("impostors");
       trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
+      void trackGameEvent({
+        type: "round_finish",
+        winner: "impostors",
+        category: playedCategory || category,
+      });
       playFanfare(false, soundEnabled);
       setPhase("result");
     }
@@ -2412,6 +2466,11 @@ function Game() {
       );
       updateScore("impostors");
       trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
+      void trackGameEvent({
+        type: "round_finish",
+        winner: "impostors",
+        category: playedCategory || category,
+      });
       playFanfare(false, soundEnabled);
       setPhase("result");
     } else {
@@ -2428,6 +2487,11 @@ function Game() {
         );
         updateScore("innocents");
         trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
+        void trackGameEvent({
+          type: "round_finish",
+          winner: "innocents",
+          category: playedCategory || category,
+        });
         playFanfare(true, soundEnabled);
         setPhase("result");
       } else {
@@ -2445,9 +2509,15 @@ function Game() {
     setPhase("result");
   };
 
-  // PIN Keypad Handlers
+  // PIN Keypad Handlers con Blindaje Anti-Fuerza Bruta (Máx 5 intentos)
   const handlePinInput = (digit: string) => {
     playPop(soundEnabled);
+    const now = Date.now();
+    if (now < pinLockoutUntil) {
+      playBeep(0.3, 200, soundEnabled);
+      return;
+    }
+
     if (enteredPin.length < 4) {
       const next = enteredPin + digit;
       setEnteredPin(next);
@@ -2461,6 +2531,7 @@ function Game() {
           setShowPinModal(false);
           setEnteredPin("");
           setShowPinHint(false);
+          setPinFailedAttempts(0);
         } else if (next === adultPin) {
           playFanfare(true, soundEnabled);
           setIsAdultUnlocked(true);
@@ -2469,9 +2540,15 @@ function Game() {
           setShowPinModal(false);
           setEnteredPin("");
           setShowPinHint(false);
+          setPinFailedAttempts(0);
         } else {
           setPinError(true);
           playBeep(0.3, 200, soundEnabled);
+          const nextAttempts = pinFailedAttempts + 1;
+          setPinFailedAttempts(nextAttempts);
+          if (nextAttempts >= 5) {
+            setPinLockoutUntil(Date.now() + 60000); // 60s de bloqueo
+          }
           setTimeout(() => {
             setEnteredPin("");
             setPinError(false);
@@ -4206,65 +4283,179 @@ function Game() {
                 </div>
               )}
 
-              {/* TAB 3: MÉTRICAS Y AJUSTES */}
+              {/* TAB 3: RADAR GLOBAL DE MÉTRICAS Y AJUSTES */}
               {ceoModalTab === "metrics" && (
                 <div className="space-y-4">
-                  {/* Telemetría / Métricas */}
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="rounded-2xl bg-black/40 p-3 border border-white/10">
-                      <span className="font-display text-2xl text-primary block">
-                        {analytics.roundsPlayed}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                        Iniciadas
+                  {/* Encabezado con estado en vivo y botón de refresco */}
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Radar Global en Vivo
                       </span>
                     </div>
-                    <div className="rounded-2xl bg-black/40 p-3 border border-white/10">
-                      <span className="font-display text-2xl text-emerald-400 block">
-                        {analytics.roundsCompleted}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                        Completadas
-                      </span>
-                    </div>
-                    <div className="rounded-2xl bg-black/40 p-3 border border-white/10">
-                      <span className="font-display text-2xl text-amber-400 block">
-                        {analytics.paywallViews}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                        Clics PRO
-                      </span>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void refreshGlobalMetrics()}
+                      disabled={loadingGlobalMetrics}
+                      className="rounded-lg bg-white/10 hover:bg-white/20 px-2.5 py-1 text-[11px] font-bold text-foreground border border-white/10 transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <RefreshCw
+                        size={11}
+                        className={loadingGlobalMetrics ? "animate-spin text-amber-400" : ""}
+                      />
+                      <span>{loadingGlobalMetrics ? "Actualizando..." : "Actualizar"}</span>
+                    </button>
                   </div>
 
-                  {/* Categorías más jugadas */}
-                  {Object.keys(analytics.categoryCounts).length > 0 && (
+                  {/* Tarjetas de Métricas Globales */}
+                  {(() => {
+                    const started = globalMetrics?.totalRoundsStarted ?? analytics.roundsPlayed;
+                    const completed =
+                      globalMetrics?.totalRoundsCompleted ?? analytics.roundsCompleted;
+                    const paywall = globalMetrics?.totalPaywallViews ?? analytics.paywallViews;
+                    const pwa = globalMetrics?.totalPwaInstalls ?? 0;
+
+                    return (
+                      <div className="grid grid-cols-4 gap-2 text-center">
+                        <div className="rounded-2xl bg-black/40 p-2.5 border border-blue-500/30">
+                          <span className="font-display text-xl text-blue-400 block">
+                            {started}
+                          </span>
+                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">
+                            Iniciadas
+                          </span>
+                        </div>
+                        <div className="rounded-2xl bg-black/40 p-2.5 border border-emerald-500/30">
+                          <span className="font-display text-xl text-emerald-400 block">
+                            {completed}
+                          </span>
+                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">
+                            Completadas
+                          </span>
+                        </div>
+                        <div className="rounded-2xl bg-black/40 p-2.5 border border-amber-500/30">
+                          <span className="font-display text-xl text-amber-400 block">
+                            {paywall}
+                          </span>
+                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">
+                            Clics PRO
+                          </span>
+                        </div>
+                        <div className="rounded-2xl bg-black/40 p-2.5 border border-purple-500/30">
+                          <span className="font-display text-xl text-purple-400 block">{pwa}</span>
+                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">
+                            PWA Installs
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Desglose de Dispositivos */}
+                  {(() => {
+                    const android = globalMetrics?.deviceCounts.android ?? 0;
+                    const ios = globalMetrics?.deviceCounts.ios ?? 0;
+                    const desktop = globalMetrics?.deviceCounts.desktop ?? 0;
+                    const totalDev = android + ios + desktop;
+                    const pAndroid = totalDev > 0 ? Math.round((android / totalDev) * 100) : 0;
+                    const pIos = totalDev > 0 ? Math.round((ios / totalDev) * 100) : 0;
+                    const pDesktop = totalDev > 0 ? Math.round((desktop / totalDev) * 100) : 0;
+
+                    return (
+                      <div className="rounded-2xl bg-black/30 p-3 border border-white/10 space-y-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Smartphone size={12} className="text-emerald-400" /> Dispositivos de la
+                          Comunidad
+                        </span>
+                        <div className="grid grid-cols-3 gap-1.5 text-center">
+                          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2">
+                            <span className="text-xs font-bold text-emerald-300 block">
+                              🤖 {android} ({pAndroid}%)
+                            </span>
+                            <span className="text-[9px] text-muted-foreground">Android</span>
+                          </div>
+                          <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-2">
+                            <span className="text-xs font-bold text-blue-300 block">
+                              🍏 {ios} ({pIos}%)
+                            </span>
+                            <span className="text-[9px] text-muted-foreground">iPhone / iOS</span>
+                          </div>
+                          <div className="rounded-xl bg-purple-500/10 border border-purple-500/20 p-2">
+                            <span className="text-xs font-bold text-purple-300 block">
+                              💻 {desktop} ({pDesktop}%)
+                            </span>
+                            <span className="text-[9px] text-muted-foreground">PC / Web</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Categorías más jugadas a nivel global */}
+                  {(() => {
+                    const catCounts =
+                      globalMetrics && Object.keys(globalMetrics.categoryCounts).length > 0
+                        ? globalMetrics.categoryCounts
+                        : analytics.categoryCounts;
+
+                    if (Object.keys(catCounts).length === 0) return null;
+
+                    return (
+                      <div className="rounded-2xl bg-black/30 p-3 border border-white/10 space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <BarChart3 size={12} className="text-amber-400" /> Categorías más jugadas
+                          (Global)
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.entries(catCounts)
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 5)
+                            .map(([cat, count]) => (
+                              <span
+                                key={cat}
+                                className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-semibold text-foreground flex items-center gap-1"
+                              >
+                                {CATEGORY_ICONS[cat] ?? "✨"} {cat}:{" "}
+                                <strong className="text-amber-300">{count}</strong>
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Actividad en vivo reciente */}
+                  {globalMetrics?.recentEvents && globalMetrics.recentEvents.length > 0 && (
                     <div className="rounded-2xl bg-black/30 p-3 border border-white/10 space-y-1.5">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <BarChart3 size={12} className="text-amber-400" /> Categorías más jugadas
+                        <Activity size={12} className="text-blue-400" /> Registro de Actividad
+                        Reciente
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {Object.entries(analytics.categoryCounts)
-                          .sort((a, b) => b[1] - a[1])
-                          .slice(0, 4)
-                          .map(([cat, count]) => (
-                            <span
-                              key={cat}
-                              className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-semibold text-foreground flex items-center gap-1"
-                            >
-                              {CATEGORY_ICONS[cat] ?? "✨"} {cat}:{" "}
-                              <strong className="text-amber-300">{count}</strong>
+                      <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                        {globalMetrics.recentEvents.slice(0, 4).map((ev) => (
+                          <div
+                            key={ev.id}
+                            className="flex items-center justify-between text-[11px] bg-white/5 rounded-lg px-2.5 py-1"
+                          >
+                            <span className="text-foreground truncate max-w-[190px]">
+                              {ev.summary}
                             </span>
-                          ))}
+                            <span className="text-[9px] text-muted-foreground font-mono shrink-0">
+                              {ev.device}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Alertas en Discord */}
+                  {/* Alertas en Discord #metricas-imposter */}
                   <div className="rounded-2xl bg-black/40 p-3.5 border border-blue-500/30 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-1.5">
-                        <Bell size={13} className="text-blue-400" /> Alertas en Discord
+                        <Bell size={13} className="text-blue-400" /> Radar en Vivo
+                        (#metricas-imposter)
                       </span>
                       {discordConnected && (
                         <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-300 flex items-center gap-1">
@@ -4273,8 +4464,8 @@ function Game() {
                       )}
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Recibe un aviso instantáneo en tu canal de Discord al celular cada vez que
-                      alguien canjee un cupón.
+                      Recibe avisos automáticos en tu canal <strong>#metricas-imposter</strong> cada
+                      vez que alguien inicie o termine una partida presencial o descargue la PWA.
                     </p>
                     <div className="flex gap-2">
                       <input
@@ -5600,11 +5791,15 @@ function Game() {
               })}
             </div>
 
-            {pinError && (
-              <p className="text-xs font-semibold text-destructive animate-pulse">
-                PIN incorrecto. Inténtalo de nuevo.
+            {Date.now() < pinLockoutUntil ? (
+              <p className="text-xs font-semibold text-rose-400 animate-pulse">
+                🛡️ Bloqueo de seguridad: Demasiados intentos fallidos. Espera 60 segundos.
               </p>
-            )}
+            ) : pinError ? (
+              <p className="text-xs font-semibold text-destructive animate-pulse">
+                PIN incorrecto ({pinFailedAttempts}/5 intentos).
+              </p>
+            ) : null}
 
             {/* Numeric Keypad */}
             <div className="grid grid-cols-3 gap-2.5 my-1">
