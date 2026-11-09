@@ -767,6 +767,21 @@ http
   })
   .listen(PORT, () => {
     console.log(`🌐 Servidor de monitoreo HTTP activo en el puerto ${PORT}`);
+
+    // 💓 Keep-Alive Automático: Previene que Render duerma el bot por inactividad
+    const RENDER_EXTERNAL_URL =
+      process.env.RENDER_EXTERNAL_URL || "https://atlas-bot-2xh4.onrender.com";
+    if (RENDER_EXTERNAL_URL) {
+      logDebug(`💓 Keep-alive activado hacia: ${RENDER_EXTERNAL_URL} (cada 10 min)`);
+      setInterval(
+        () => {
+          fetch(RENDER_EXTERNAL_URL)
+            .then(() => logDebug("💓 Keep-alive ping enviado a Render exitosamente"))
+            .catch(() => {});
+        },
+        10 * 60 * 1000,
+      ); // Ping cada 10 minutos (Render duerme a los 15 min)
+    }
   });
 
 client.login(DISCORD_BOT_TOKEN).catch((err) => {
