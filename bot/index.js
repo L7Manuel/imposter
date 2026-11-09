@@ -674,6 +674,23 @@ http
       req.on("end", async () => {
         try {
           const data = JSON.parse(body || "{}");
+
+          // 🧹 Reinicio autorizado por el CEO para arrancar métricas limpias
+          if (data.action === "reset" || data.type === "reset") {
+            botLiveMetrics.roundsStarted = 0;
+            botLiveMetrics.roundsCompleted = 0;
+            botLiveMetrics.pwaInstalls = 0;
+            botLiveMetrics.paywallViews = 0;
+            botLiveMetrics.categoryCounts = {};
+            botLiveMetrics.deviceCounts = { android: 0, ios: 0, desktop: 0 };
+            botLiveMetrics.recentEvents = [];
+            botLiveMetrics.lastEventTime = null;
+            logDebug("🧹 Métricas de Atlas reiniciadas a cero por orden del CEO.");
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, reset: true, metrics: botLiveMetrics }));
+            return;
+          }
+
           const deviceStr = data.device || "Desconocido";
           const nowStr = new Date().toLocaleTimeString();
           botLiveMetrics.lastEventTime = `${nowStr} (${deviceStr})`;

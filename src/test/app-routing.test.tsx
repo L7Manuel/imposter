@@ -10,7 +10,7 @@ import {
   sha256,
   verifyAccessCode,
 } from "@/lib/security";
-import { detectUserDevice } from "@/lib/telemetry";
+import { detectUserDevice, isCeoDevice } from "@/lib/telemetry";
 import { routeTree } from "@/routeTree.gen";
 
 // Match routes without running loaders or rendering: loaders may need a server or
@@ -71,5 +71,6 @@ describe("Security shields", () => {
 
   it("detects user execution environments correctly for telemetry", () => {
     expect(typeof detectUserDevice()).toBe("string");
+    expect(isCeoDevice()).toBe(false);
   });
 });

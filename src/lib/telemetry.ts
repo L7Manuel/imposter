@@ -48,6 +48,19 @@ export function detectUserDevice(): string {
 }
 
 /**
+ * Comprueba si el dispositivo actual pertenece al CEO para no contaminar métricas reales.
+ */
+export function isCeoDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const token = localStorage.getItem("impostor-ceo-token");
+    return Boolean(token && token.length > 20);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Envía un evento de telemetría sin bloquear la interfaz de usuario ni ralentizar el juego.
  * Doble canal: Servidor TanStack + Radar de Atlas en Render Cloud.
  */
@@ -55,6 +68,11 @@ export async function trackGameEvent(
   payload: Omit<TelemetryEventPayload, "device">,
   customDevice?: string,
 ): Promise<void> {
+  // 🛡️ Filtro de Tráfico Interno: Si la acción la realiza el CEO en su dispositivo, se omite silenciosamente
+  if (isCeoDevice()) {
+    return;
+  }
+
   const device = customDevice || detectUserDevice();
   const fullPayload: TelemetryEventPayload = { ...payload, device };
 

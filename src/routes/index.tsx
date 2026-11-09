@@ -1445,6 +1445,8 @@ function Game() {
   }, [showCeoModal, paymentConfig]);
 
   const trackAnalytics = (updater: (prev: AnalyticsState) => AnalyticsState) => {
+    // 🛡️ Filtro de Tráfico Interno: Si el usuario es el CEO, no alterar analíticas
+    if (isCeoAdmin) return;
     setAnalytics((prev) => {
       const next = updater(prev);
       try {
@@ -1460,11 +1462,13 @@ function Game() {
     playPop(soundEnabled);
     setProCodeFeedback(null);
     setProModalView("perks");
-    trackAnalytics((prev) => ({
-      ...prev,
-      paywallViews: prev.paywallViews + 1,
-    }));
-    void trackGameEvent({ type: "paywall_view", planId: selectedPlan });
+    if (!isCeoAdmin) {
+      trackAnalytics((prev) => ({
+        ...prev,
+        paywallViews: prev.paywallViews + 1,
+      }));
+      void trackGameEvent({ type: "paywall_view", planId: selectedPlan });
+    }
     setShowProModal(true);
   };
 
@@ -1959,7 +1963,7 @@ function Game() {
     }
   };
 
-  const resetAnalytics = () => {
+  const resetAnalytics = async () => {
     playPop(soundEnabled);
     const empty: AnalyticsState = {
       roundsPlayed: 0,
@@ -1969,6 +1973,25 @@ function Game() {
     };
     setAnalytics(empty);
     localStorage.setItem("impostor-analytics", JSON.stringify(empty));
+
+    // Reiniciar también el radar global del servidor y el bot de Atlas
+    try {
+      const fresh = await getGlobalMetricsServerFn({ data: { reset: true } });
+      setGlobalMetrics(fresh);
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      fetch("https://atlas-bot-2xh4.onrender.com/api/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset" }),
+        mode: "cors",
+      }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
   };
 
   const handleSaveAndTestDiscord = async () => {
@@ -2197,7 +2220,9 @@ function Game() {
       const outcome = await promptPwaInstall();
       if (outcome === "accepted") {
         setShowInstallModal(false);
-        void trackGameEvent({ type: "pwa_install" });
+        if (!isCeoAdmin) {
+          void trackGameEvent({ type: "pwa_install" });
+        }
         return;
       }
     }
@@ -2377,14 +2402,17 @@ function Game() {
     setShowImpostorGuessModal(false);
 
     // 🛰️ Telemetría en vivo (Avisa a Discord #metricas-imposter y al Radar CEO)
-    void trackGameEvent({
-      type: "round_start",
-      category: chosenCat,
-      playerCount: names.length,
-      impostorCount: chosenImpostors.length,
-      isAdult: chosenCat === ADULT_CATEGORY,
-      isJester: assignedJester !== null,
-    });
+    // 🛡️ Filtro de Tráfico Interno: Omite las partidas de prueba del CEO
+    if (!isCeoAdmin) {
+      void trackGameEvent({
+        type: "round_start",
+        category: chosenCat,
+        playerCount: names.length,
+        impostorCount: chosenImpostors.length,
+        isAdult: chosenCat === ADULT_CATEGORY,
+        isJester: assignedJester !== null,
+      });
+    }
 
     setPhase("reveal");
   };
@@ -2429,11 +2457,13 @@ function Game() {
         `¡Cayeron en su trampa! ${getPlayerName(accused)} era el Bufón y logró que el grupo lo votara.`,
       );
       trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
-      void trackGameEvent({
-        type: "round_finish",
-        winner: "jester",
-        category: playedCategory || category,
-      });
+      if (!isCeoAdmin) {
+        void trackGameEvent({
+          type: "round_finish",
+          winner: "jester",
+          category: playedCategory || category,
+        });
+      }
       playFanfare(true, soundEnabled);
       setPhase("result");
     } else if (isImp) {
@@ -2447,11 +2477,13 @@ function Game() {
       );
       updateScore("impostors");
       trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
-      void trackGameEvent({
-        type: "round_finish",
-        winner: "impostors",
-        category: playedCategory || category,
-      });
+      if (!isCeoAdmin) {
+        void trackGameEvent({
+          type: "round_finish",
+          winner: "impostors",
+          category: playedCategory || category,
+        });
+      }
       playFanfare(false, soundEnabled);
       setPhase("result");
     }
@@ -2466,11 +2498,13 @@ function Game() {
       );
       updateScore("impostors");
       trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
-      void trackGameEvent({
-        type: "round_finish",
-        winner: "impostors",
-        category: playedCategory || category,
-      });
+      if (!isCeoAdmin) {
+        void trackGameEvent({
+          type: "round_finish",
+          winner: "impostors",
+          category: playedCategory || category,
+        });
+      }
       playFanfare(false, soundEnabled);
       setPhase("result");
     } else {
@@ -2487,11 +2521,13 @@ function Game() {
         );
         updateScore("innocents");
         trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
-        void trackGameEvent({
-          type: "round_finish",
-          winner: "innocents",
-          category: playedCategory || category,
-        });
+        if (!isCeoAdmin) {
+          void trackGameEvent({
+            type: "round_finish",
+            winner: "innocents",
+            category: playedCategory || category,
+          });
+        }
         playFanfare(true, soundEnabled);
         setPhase("result");
       } else {
