@@ -12,7 +12,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "npm run build && npx wrangler deploy",
+    "deploy": "npm run build && npx wrangler deploy --name imposter",
     "bot": "node bot/index.js"
   },
   "overrides": {
