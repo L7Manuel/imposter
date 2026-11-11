@@ -1226,7 +1226,6 @@ function Game() {
   const [tasaInput, setTasaInput] = useState<string>(
     String(DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs || 55),
   );
-  const [ceoModalTab, setCeoModalTab] = useState<"coupons" | "payments" | "metrics">("coupons");
   const [paymentSavedFeedback, setPaymentSavedFeedback] = useState<string>("");
 
   // Notificación de Pago y Auto-Aprobación en Vivo
@@ -1560,7 +1559,6 @@ function Game() {
           const cleanCode = codeParam.toUpperCase().trim();
           setProCodeInput(cleanCode);
           setShowSettingsModal(false);
-          setShowCeoModal(false);
           setShowProModal(true);
           setProCodeFeedback({
             type: "success",
@@ -3516,36 +3514,6 @@ function Game() {
 
             {/* Modal Body (Scrollable) */}
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
-              {/* 0. ACCESO RÁPIDO AL PANEL EJECUTIVO CEO */}
-              {isCeoAdmin && (
-                <div className="rounded-2xl bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-transparent p-4 border border-amber-400/40 flex items-center justify-between shadow-lg">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-400 text-black shadow-md font-bold">
-                      <Crown size={18} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-amber-300 uppercase tracking-wide">
-                        Panel Ejecutivo CEO
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Monitor de cupones, telemetría y Discord
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playPop(soundEnabled);
-                      setShowSettingsModal(false);
-                      setShowCeoModal(true);
-                    }}
-                    className="rounded-xl bg-amber-400 text-black px-3.5 py-2 text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition cursor-pointer"
-                  >
-                    Abrir Panel
-                  </button>
-                </div>
-              )}
-
               {/* 1. GESTOR DE CATEGORÍAS PERSONALIZADAS */}
               <div className="rounded-2xl bg-background/50 p-4 border border-white/10 space-y-3">
                 <div className="flex items-center justify-between">

@@ -24,6 +24,13 @@ import {
   Clock,
   Sparkles,
   Zap,
+  Smartphone,
+  Monitor,
+  Activity,
+  Edit3,
+  Save,
+  MessageCircle,
+  DollarSign,
 } from "lucide-react";
 import {
   isValidStoredToken,
@@ -80,14 +87,22 @@ export function CeoPage() {
   const [editingCouponIdx, setEditingCouponIdx] = useState<number | null>(null);
   const [editingNameInput, setEditingNameInput] = useState("");
   const [discordWebhookInput, setDiscordWebhookInput] = useState("");
-  const [testWebhookStatus, setTestWebhookStatus] = useState<string | null>(null);
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [webhookFeedback, setWebhookFeedback] = useState<{
+    type: "success" | "error";
+    msg: string;
+  } | null>(null);
 
   // Metrics state
   const [metrics, setMetrics] = useState<GlobalMetrics>({
-    roundsStarted: 0,
-    roundsCompleted: 0,
-    paywallClicks: 0,
-    topCategories: {},
+    totalRoundsStarted: 0,
+    totalRoundsCompleted: 0,
+    totalPaywallViews: 0,
+    totalPwaInstalls: 0,
+    categoryCounts: {},
+    deviceCounts: { android: 0, ios: 0, desktop: 0 },
+    recentEvents: [],
+    lastUpdated: Date.now(),
   });
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -160,8 +175,8 @@ export function CeoPage() {
     setIsLoadingMetrics(true);
     try {
       const res = await getGlobalMetricsServerFn({ data: {} });
-      if (res.success && res.metrics) {
-        setMetrics(res.metrics);
+      if (res && typeof res.totalRoundsStarted === "number") {
+        setMetrics(res);
       }
     } catch {
       /* ignore */
@@ -173,9 +188,10 @@ export function CeoPage() {
   const fetchTesterStatuses = useCallback(async () => {
     try {
       const res = await getCouponServerStatusServerFn();
-      if (res.success && res.usedHashes) {
-        setUsedCoupons(res.usedHashes);
-        localStorage.setItem(STORAGE_KEYS.USED_COUPONS, JSON.stringify(res.usedHashes));
+      if (res && Array.isArray(res.usedCoupons)) {
+        const hashes = res.usedCoupons.map((c: { hash: string }) => c.hash);
+        setUsedCoupons(hashes);
+        localStorage.setItem(STORAGE_KEYS.USED_COUPONS, JSON.stringify(hashes));
       }
     } catch {
       /* ignore */
@@ -197,6 +213,83 @@ export function CeoPage() {
     fetchMetrics,
     fetchTesterStatuses,
   ]);
+
+  // Auto-refresh activo para métricas (cada 10s) y cobros (cada 15s)
+  useEffect(() => {
+    if (!isAuthorized || !token) return;
+    if (activeTab === "metricas") {
+      const timer = setInterval(() => {
+        fetchMetrics();
+      }, 10000);
+      return () => clearInterval(timer);
+    }
+    if (activeTab === "cobros") {
+      const timer = setInterval(() => {
+        fetchPayments(token);
+      }, 15000);
+      return () => clearInterval(timer);
+    }
+  }, [isAuthorized, token, activeTab, fetchMetrics, fetchPayments]);
+
+  const handleTestDiscordWebhook = async () => {
+    const url = discordWebhookInput.trim();
+    if (!url.startsWith("https://discord.com/api/webhooks/")) {
+      setWebhookFeedback({
+        type: "error",
+        msg: "La URL debe comenzar con https://discord.com/api/webhooks/",
+      });
+      return;
+    }
+    setIsTestingWebhook(true);
+    setWebhookFeedback(null);
+    try {
+      localStorage.setItem(STORAGE_KEYS.DISCORD_WEBHOOK, url);
+      const res = await testDiscordWebhookServerFn({ data: { webhookUrl: url } });
+      if (res.success) {
+        setWebhookFeedback({
+          type: "success",
+          msg: "¡Alerta enviada exitosamente a tu canal de Discord!",
+        });
+        setTimeout(() => setWebhookFeedback(null), 4000);
+      } else {
+        setWebhookFeedback({
+          type: "error",
+          msg: res.error || "Discord rechazó el webhook. Verifica el enlace.",
+        });
+      }
+    } catch {
+      setWebhookFeedback({
+        type: "error",
+        msg: "Error de red al conectar con el webhook de Discord.",
+      });
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
+
+  const handleSaveTesterName = (num: number) => {
+    const clean = editingNameInput.trim() || (num === 1 ? "Ivana" : `Tester #${num}`);
+    const updated = { ...couponNames, [num]: clean };
+    setCouponNames(updated);
+    localStorage.setItem(STORAGE_KEYS.COUPON_NAMES, JSON.stringify(updated));
+    setEditingCouponIdx(null);
+    setEditingNameInput("");
+  };
+
+  const buildTesterWhatsAppUrl = (code: string, testerName: string) => {
+    const name = testerName?.trim() || "Tester VIP";
+    const text = `¡Hola ${name}! 🧪 Aquí tienes tu cupón exclusivo de Tester VIP para Imposter (48 horas de acceso PRO gratuito).
+
+🔑 Tu Cupón: ${code}
+📲 Juega aquí: https://imposter.manu-07games.workers.dev
+
+Pasos para activar:
+1. Abre el enlace en tu navegador móvil.
+2. Toca la corona dorada en la barra superior.
+3. Ingresa tu código en "¿Tienes un código o cupón PRO?".
+4. ¡Listo! Tienes 48h con todas las categorías y modos desbloqueados.`;
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -773,25 +866,50 @@ Pasos:
           </div>
 
           {/* Configuración de Pago Móvil & Binance */}
-          <div className="rounded-2xl glass-panel p-5 border border-white/10">
-            <h3 className="font-display text-base text-foreground mb-1">
-              DATOS BANCARIOS Y WALLETS PARA COBROS
-            </h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              Los datos que se muestran en el Paywall a los jugadores
-            </p>
+          <div className="rounded-2xl glass-panel p-5 border border-white/10 space-y-4">
+            <div>
+              <h3 className="font-display text-base text-foreground mb-1">
+                DATOS BANCARIOS Y WALLETS PARA COBROS
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Los datos que se muestran en el Paywall a los jugadores para pagar en Bolívares o
+                Cripto
+              </p>
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Pago Móvil — Banco
+                </label>
+                <input
+                  type="text"
+                  value={paymentConfig.pagoMovil.banco}
+                  onChange={(e) =>
+                    setPaymentConfig({
+                      ...paymentConfig,
+                      pagoMovil: { ...paymentConfig.pagoMovil, banco: e.target.value },
+                    })
+                  }
+                  placeholder="ej: Banesco (0134)"
+                  className="w-full rounded-xl bg-white/5 border border-white/15 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">
                   Pago Móvil — Teléfono
                 </label>
                 <input
                   type="text"
-                  value={paymentConfig.pagoMovilPhone}
+                  value={paymentConfig.pagoMovil.telefono}
                   onChange={(e) =>
-                    setPaymentConfig({ ...paymentConfig, pagoMovilPhone: e.target.value })
+                    setPaymentConfig({
+                      ...paymentConfig,
+                      pagoMovil: { ...paymentConfig.pagoMovil, telefono: e.target.value },
+                    })
                   }
+                  placeholder="ej: 0414-1234567"
                   className="w-full rounded-xl bg-white/5 border border-white/15 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
                 />
               </div>
@@ -802,58 +920,183 @@ Pasos:
                 </label>
                 <input
                   type="text"
-                  value={paymentConfig.pagoMovilId}
+                  value={paymentConfig.pagoMovil.cedula}
                   onChange={(e) =>
-                    setPaymentConfig({ ...paymentConfig, pagoMovilId: e.target.value })
+                    setPaymentConfig({
+                      ...paymentConfig,
+                      pagoMovil: { ...paymentConfig.pagoMovil, cedula: e.target.value },
+                    })
                   }
+                  placeholder="ej: V-12345678"
                   className="w-full rounded-xl bg-white/5 border border-white/15 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
                 />
               </div>
 
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">
-                  Pago Móvil — Banco
+                  Pago Móvil — Titular
                 </label>
                 <input
                   type="text"
-                  value={paymentConfig.pagoMovilBank}
+                  value={paymentConfig.pagoMovil.titular}
                   onChange={(e) =>
-                    setPaymentConfig({ ...paymentConfig, pagoMovilBank: e.target.value })
+                    setPaymentConfig({
+                      ...paymentConfig,
+                      pagoMovil: { ...paymentConfig.pagoMovil, titular: e.target.value },
+                    })
                   }
+                  placeholder="ej: Manuel Lermit"
+                  className="w-full rounded-xl bg-white/5 border border-white/15 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-amber-300 font-semibold block mb-1">
+                  Tasa de Cambio (Bs / USD)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={paymentConfig.pagoMovil.tasaBs || ""}
+                  onChange={(e) =>
+                    setPaymentConfig({
+                      ...paymentConfig,
+                      pagoMovil: {
+                        ...paymentConfig.pagoMovil,
+                        tasaBs: parseFloat(e.target.value) || 0,
+                      },
+                    })
+                  }
+                  placeholder="ej: 55.00"
+                  className="w-full rounded-xl bg-amber-400/5 border border-amber-400/30 px-3 py-2 text-sm text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Binance Pay — ID de Pago
+                </label>
+                <input
+                  type="text"
+                  value={paymentConfig.binancePay.payId}
+                  onChange={(e) =>
+                    setPaymentConfig({
+                      ...paymentConfig,
+                      binancePay: { ...paymentConfig.binancePay, payId: e.target.value },
+                    })
+                  }
+                  placeholder="ej: 123456789"
                   className="w-full rounded-xl bg-white/5 border border-white/15 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
                 />
               </div>
 
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">
-                  Binance Pay — ID o Correo
+                  Binance Pay — Nickname
                 </label>
                 <input
                   type="text"
-                  value={paymentConfig.binancePayId}
+                  value={paymentConfig.binancePay.nickname}
                   onChange={(e) =>
-                    setPaymentConfig({ ...paymentConfig, binancePayId: e.target.value })
+                    setPaymentConfig({
+                      ...paymentConfig,
+                      binancePay: { ...paymentConfig.binancePay, nickname: e.target.value },
+                    })
                   }
+                  placeholder="ej: ManuGamer"
+                  className="w-full rounded-xl bg-white/5 border border-white/15 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">
+                  Enlace Internacional (Stripe / Whop / Tarjetas)
+                </label>
+                <input
+                  type="text"
+                  value={paymentConfig.internationalLink || ""}
+                  onChange={(e) =>
+                    setPaymentConfig({
+                      ...paymentConfig,
+                      internationalLink: e.target.value,
+                    })
+                  }
+                  placeholder="https://whop.com/imposter"
                   className="w-full rounded-xl bg-white/5 border border-white/15 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
                 />
               </div>
             </div>
 
-            <button
-              onClick={async () => {
-                if (!token) return;
-                const res = await savePaymentConfigServerFn({
-                  data: { ceoToken: token, config: paymentConfig },
-                });
-                if (res.success) {
-                  setSavePaymentSuccess(true);
-                  setTimeout(() => setSavePaymentSuccess(false), 2500);
-                }
-              }}
-              className="rounded-xl bg-primary hover:brightness-110 px-5 py-2.5 text-xs font-semibold text-primary-foreground transition cursor-pointer"
-            >
-              {savePaymentSuccess ? "¡Guardado con éxito!" : "Guardar Datos de Cobro"}
-            </button>
+            {/* Calculadora en Vivo según Tasa */}
+            <div className="rounded-xl border border-amber-400/30 bg-amber-500/[0.04] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                  <DollarSign size={14} /> Conversión en Vivo para el Paywall
+                </span>
+                <span className="font-mono text-xs font-bold text-amber-300 bg-amber-400/10 border border-amber-400/40 px-2 py-0.5 rounded-lg">
+                  Tasa: Bs. {(paymentConfig.pagoMovil.tasaBs || 55).toFixed(2)}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="rounded-lg bg-black/30 border border-white/10 p-2.5">
+                  <span className="text-[11px] text-muted-foreground block">Pase Fiesta (24h)</span>
+                  <span className="font-bold text-foreground block mt-0.5">$0.99 USD</span>
+                  <span className="font-mono text-amber-300 font-bold block mt-1">
+                    Bs. {Math.round(0.99 * (paymentConfig.pagoMovil.tasaBs || 55)).toLocaleString()}
+                  </span>
+                </div>
+                <div className="rounded-lg bg-black/30 border border-white/10 p-2.5">
+                  <span className="text-[11px] text-muted-foreground block">
+                    Fin de Semana (72h)
+                  </span>
+                  <span className="font-bold text-foreground block mt-0.5">$1.99 USD</span>
+                  <span className="font-mono text-amber-300 font-bold block mt-1">
+                    Bs. {Math.round(1.99 * (paymentConfig.pagoMovil.tasaBs || 55)).toLocaleString()}
+                  </span>
+                </div>
+                <div className="rounded-lg bg-black/30 border border-white/10 p-2.5">
+                  <span className="text-[11px] text-muted-foreground block">
+                    Pase Mensual (30d)
+                  </span>
+                  <span className="font-bold text-foreground block mt-0.5">$3.99 USD</span>
+                  <span className="font-mono text-amber-300 font-bold block mt-1">
+                    Bs. {Math.round(3.99 * (paymentConfig.pagoMovil.tasaBs || 55)).toLocaleString()}
+                  </span>
+                </div>
+                <div className="rounded-lg bg-black/30 border border-amber-400/30 p-2.5 bg-amber-500/[0.05]">
+                  <span className="text-[11px] text-amber-300 font-bold block">
+                    Fundador Vitalicio
+                  </span>
+                  <span className="font-bold text-foreground block mt-0.5">$9.80 USD</span>
+                  <span className="font-mono text-amber-300 font-bold block mt-1">
+                    Bs. {Math.round(9.8 * (paymentConfig.pagoMovil.tasaBs || 55)).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={async () => {
+                  if (!token) return;
+                  const res = await savePaymentConfigServerFn({
+                    data: { ceoToken: token, config: paymentConfig },
+                  });
+                  if (res.success) {
+                    setSavePaymentSuccess(true);
+                    setTimeout(() => setSavePaymentSuccess(false), 2500);
+                  }
+                }}
+                className="rounded-xl bg-primary hover:brightness-110 px-5 py-2.5 text-xs font-semibold text-primary-foreground transition cursor-pointer shadow-md"
+              >
+                {savePaymentSuccess ? "¡Guardado con éxito!" : "Guardar Datos de Cobro"}
+              </button>
+              {savePaymentSuccess && (
+                <span className="text-xs text-emerald-400 font-medium">
+                  Actualizado en el Paywall del juego
+                </span>
+              )}
+            </div>
           </div>
         </section>
       )}
@@ -862,13 +1105,23 @@ Pasos:
       {activeTab === "testers" && (
         <section className="flex flex-col gap-6">
           <div className="rounded-2xl glass-panel p-5 border border-white/10">
-            <h3 className="font-display text-lg text-foreground mb-1">
-              10 CUPONES VIP DE PRUEBA (48 HORAS)
-            </h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              Cada cupón es de 1 solo uso estricto y desbloquea el juego por 48 horas a tus sujetos
-              de prueba.
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-display text-lg text-foreground mb-1">
+                  10 CUPONES VIP DE PRUEBA (48 HORAS)
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Cada cupón es de 1 solo uso estricto y desbloquea el juego por 48 horas a tus
+                  sujetos de prueba.
+                </p>
+              </div>
+              <button
+                onClick={() => fetchTesterStatuses()}
+                className="flex items-center gap-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition cursor-pointer"
+              >
+                <RefreshCw size={13} /> Sincronizar
+              </button>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {decryptedCodes.map((code, idx) => {
@@ -876,20 +1129,59 @@ Pasos:
                 const hash = VIP_COUPON_HASHES_ORDERED[idx] || "";
                 const isUsed = usedCoupons.includes(hash);
                 const assignedName = couponNames[num] || (num === 1 ? "Ivana" : `Tester #${num}`);
+                const isEditing = editingCouponIdx === num;
 
                 return (
                   <div
                     key={num}
-                    className="flex items-center justify-between rounded-xl bg-white/[0.02] border border-white/10 p-3 text-xs"
+                    className="flex items-center justify-between rounded-xl bg-white/[0.02] border border-white/10 p-3 text-xs gap-2"
                   >
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="font-display text-muted-foreground">#{num}:</span>
                         <span className="font-mono font-bold text-foreground">{code}</span>
                       </div>
-                      <span className="text-muted-foreground block text-[11px] mt-0.5">
-                        Asignado a: <strong>{assignedName}</strong>
-                      </span>
+
+                      {isEditing ? (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <input
+                            type="text"
+                            value={editingNameInput}
+                            onChange={(e) => setEditingNameInput(e.target.value)}
+                            placeholder="Nombre..."
+                            className="rounded-lg bg-white/10 border border-white/20 px-2 py-0.5 text-xs text-foreground focus:outline-none focus:border-primary w-28"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveTesterName(num);
+                              if (e.key === "Escape") setEditingCouponIdx(null);
+                            }}
+                          />
+                          <button
+                            onClick={() => handleSaveTesterName(num)}
+                            className="rounded-md bg-primary text-primary-foreground p-1 hover:brightness-110 cursor-pointer"
+                            title="Guardar nombre"
+                          >
+                            <Save size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] mt-0.5">
+                          <span>
+                            Asignado: <strong>{assignedName}</strong>
+                          </span>
+                          <button
+                            onClick={() => {
+                              setEditingCouponIdx(num);
+                              setEditingNameInput(assignedName);
+                            }}
+                            className="text-muted-foreground hover:text-foreground transition p-0.5 rounded cursor-pointer"
+                            title="Editar nombre"
+                          >
+                            <Edit3 size={11} />
+                          </button>
+                        </div>
+                      )}
+
                       <span
                         className={`text-[10px] font-semibold mt-0.5 inline-block ${
                           isUsed ? "text-rose-400" : "text-emerald-400"
@@ -899,10 +1191,24 @@ Pasos:
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Botón WhatsApp */}
+                      <a
+                        href={buildTesterWhatsAppUrl(code, assignedName)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1.5 flex items-center gap-1 transition"
+                        title="Enviar cupón por WhatsApp"
+                      >
+                        <MessageCircle size={14} />
+                        <span className="text-[11px] font-semibold hidden md:inline">WhatsApp</span>
+                      </a>
+
+                      {/* Botón Copiar */}
                       <button
                         onClick={() => copyToClipboard(code, `tester-${num}`)}
-                        className="rounded-lg bg-white/5 hover:bg-white/10 p-1.5 text-muted-foreground hover:text-foreground transition"
+                        className="rounded-lg bg-white/5 hover:bg-white/10 p-1.5 text-muted-foreground hover:text-foreground transition cursor-pointer"
+                        title="Copiar código"
                       >
                         {copiedKey === `tester-${num}` ? (
                           <Check size={14} className="text-emerald-400" />
@@ -922,46 +1228,190 @@ Pasos:
       {/* TAB 4: MÉTRICAS */}
       {activeTab === "metricas" && (
         <section className="flex flex-col gap-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Header de Telemetría */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-display text-lg text-foreground">TELEMETRÍA Y RADAR EN VIVO</h3>
+              <p className="text-xs text-muted-foreground">
+                Métricas globales de juego y eventos en tiempo real desde Cloudflare Edge
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">
+                Última sinc:{" "}
+                <span className="font-mono text-foreground font-semibold">
+                  {metrics.lastUpdated
+                    ? new Date(metrics.lastUpdated).toLocaleTimeString()
+                    : "Ahora"}
+                </span>
+              </span>
+              <button
+                onClick={() => fetchMetrics()}
+                className="flex items-center gap-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition cursor-pointer"
+              >
+                <RefreshCw size={13} className={isLoadingMetrics ? "animate-spin" : ""} />{" "}
+                Actualizar
+              </button>
+            </div>
+          </div>
+
+          {/* Grid de 4 KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="rounded-2xl glass-panel p-4 border border-white/10">
               <span className="text-xs text-muted-foreground">Partidas Iniciadas (Reales)</span>
               <span className="font-display text-3xl text-amber-400 mt-2 block">
-                {metrics.roundsStarted}
+                {metrics.totalRoundsStarted}
               </span>
             </div>
             <div className="rounded-2xl glass-panel p-4 border border-white/10">
               <span className="text-xs text-muted-foreground">Partidas Completadas</span>
               <span className="font-display text-3xl text-emerald-400 mt-2 block">
-                {metrics.roundsCompleted}
+                {metrics.totalRoundsCompleted}
               </span>
             </div>
             <div className="rounded-2xl glass-panel p-4 border border-white/10">
-              <span className="text-xs text-muted-foreground">Clics en Ofertas PRO</span>
+              <span className="text-xs text-muted-foreground">Vistas de Paywall</span>
               <span className="font-display text-3xl text-blue-400 mt-2 block">
-                {metrics.paywallClicks}
+                {metrics.totalPaywallViews}
               </span>
             </div>
+            <div className="rounded-2xl glass-panel p-4 border border-white/10">
+              <span className="text-xs text-muted-foreground">Instalaciones PWA</span>
+              <span className="font-display text-3xl text-purple-400 mt-2 block">
+                {metrics.totalPwaInstalls}
+              </span>
+            </div>
+          </div>
+
+          {/* Radar de Dispositivos */}
+          <div className="rounded-2xl glass-panel p-5 border border-white/10">
+            <h4 className="font-display text-sm text-foreground mb-3 flex items-center gap-1.5">
+              <Activity size={15} className="text-primary" /> RADAR DE DISPOSITIVOS
+            </h4>
+            {(() => {
+              const d = metrics.deviceCounts || { android: 0, ios: 0, desktop: 0 };
+              const total = d.android + d.ios + d.desktop || 1;
+              const pAndroid = Math.round((d.android / total) * 100);
+              const pIos = Math.round((d.ios / total) * 100);
+              const pDesktop = Math.round((d.desktop / total) * 100);
+
+              return (
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                    <div className="flex items-center justify-center gap-1 text-emerald-400 text-xs mb-1">
+                      <Smartphone size={14} /> Android
+                    </div>
+                    <span className="font-display text-xl text-foreground block">{d.android}</span>
+                    <span className="text-[11px] text-muted-foreground">{pAndroid}%</span>
+                  </div>
+                  <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                    <div className="flex items-center justify-center gap-1 text-blue-400 text-xs mb-1">
+                      <Smartphone size={14} /> iPhone (iOS)
+                    </div>
+                    <span className="font-display text-xl text-foreground block">{d.ios}</span>
+                    <span className="text-[11px] text-muted-foreground">{pIos}%</span>
+                  </div>
+                  <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                    <div className="flex items-center justify-center gap-1 text-purple-400 text-xs mb-1">
+                      <Monitor size={14} /> PC / Desktop
+                    </div>
+                    <span className="font-display text-xl text-foreground block">{d.desktop}</span>
+                    <span className="text-[11px] text-muted-foreground">{pDesktop}%</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Top Categorías */}
           <div className="rounded-2xl glass-panel p-5 border border-white/10">
             <h3 className="font-display text-base text-foreground mb-3">CATEGORÍAS MÁS JUGADAS</h3>
-            {Object.keys(metrics.topCategories || {}).length === 0 ? (
+            {Object.keys(metrics.categoryCounts || {}).length === 0 ? (
               <p className="text-xs text-muted-foreground">No hay categorías registradas aún.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {Object.entries(metrics.topCategories).map(([cat, count]) => (
+                {Object.entries(metrics.categoryCounts)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([cat, count]) => (
+                    <div
+                      key={cat}
+                      className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-1.5 text-xs"
+                    >
+                      <span className="text-foreground font-medium">{cat}</span>
+                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-amber-300 font-bold">
+                        {count}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {/* Feed de Actividad en Vivo */}
+          <div className="rounded-2xl glass-panel p-5 border border-white/10">
+            <h4 className="font-display text-sm text-foreground mb-3">FEED DE ACTIVIDAD EN VIVO</h4>
+            {!metrics.recentEvents || metrics.recentEvents.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No hay eventos recientes registrados.</p>
+            ) : (
+              <div className="flex flex-col gap-2 max-h-56 overflow-y-auto">
+                {metrics.recentEvents.slice(0, 10).map((ev) => (
                   <div
-                    key={cat}
-                    className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-1.5 text-xs"
+                    key={ev.id}
+                    className="flex items-center justify-between rounded-lg bg-white/[0.02] border border-white/5 px-3 py-2 text-xs"
                   >
-                    <span className="text-foreground font-medium">{cat}</span>
-                    <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-amber-300 font-bold">
-                      {count}
-                    </span>
+                    <span className="text-foreground font-medium">{ev.summary}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        {ev.device}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {new Date(ev.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* Configuración Discord Webhook */}
+          <div className="rounded-2xl glass-panel p-5 border border-white/10 space-y-3">
+            <div>
+              <h4 className="font-display text-sm text-foreground">
+                CANAL DE ALERTAS DISCORD (WEBHOOK)
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Recibe notificaciones en vivo en tu Discord cada vez que un jugador inicie partida,
+                compre un pase o canjee un cupón.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                placeholder="https://discord.com/api/webhooks/..."
+                value={discordWebhookInput}
+                onChange={(e) => setDiscordWebhookInput(e.target.value)}
+                className="flex-1 rounded-xl bg-white/5 border border-white/15 px-3.5 py-2 text-xs text-foreground font-mono focus:outline-none focus:border-primary placeholder:text-muted-foreground/50"
+              />
+              <button
+                type="button"
+                onClick={handleTestDiscordWebhook}
+                disabled={isTestingWebhook}
+                className="rounded-xl bg-primary hover:brightness-110 px-4 py-2 text-xs font-semibold text-primary-foreground transition cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                {isTestingWebhook ? "Probando..." : "Guardar y Probar Alerta"}
+              </button>
+            </div>
+
+            {webhookFeedback && (
+              <p
+                className={`text-xs font-medium ${
+                  webhookFeedback.type === "success" ? "text-emerald-400" : "text-rose-400"
+                }`}
+              >
+                {webhookFeedback.msg}
+              </p>
             )}
           </div>
 

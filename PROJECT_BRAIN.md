@@ -154,6 +154,11 @@ Para no quebrar el producto ni acumular deudas técnicas, estas decisiones deben
    - Durante la fase de debate grupal, **NO debe haber música de fiesta ruidosa**. En una reunión presencial, la gente necesita hablar, reírse e interrogarse. Solo en los **últimos 15 segundos** suena el latido y reloj de escape room para apurar el voto.
 4. **Seguridad y Cupones:**
    - Los cupones se firman criptográficamente (HMAC). Nadie puede inventarse un código falso en la consola del navegador; el sistema verifica la firma antes de otorgar acceso PRO.
+5. **Consola Ejecutiva Dedicada (`/ceo`):**
+   - **Pase Fundadores:** Emisión ilimitada correlativa de `FNDR-XXXX-YYYY` con enlace directo a WhatsApp y Discord VIP. Cada fundador gestiona 5 pases de invitado (`FNDRXXXX-PX-YYY`) que el CEO monitorea en vivo.
+   - **Cobros Dinámicos:** Gestión de Pago Móvil (banco, teléfono, cédula, titular, tasa Bs) y Binance Pay (ID, nickname). Incluye calculadora en tiempo real con conversión automática a Bolívares de todos los planes.
+   - **Testers VIP (48h):** Gestión de 10 cupones de prueba con edición de nombre asignado y botón de WhatsApp con mensaje listo para enviar.
+   - **Telemetría y Radar en Vivo:** KPIs reales (`totalRoundsStarted`, `totalRoundsCompleted`, `totalPaywallViews`, `totalPwaInstalls`), radar de dispositivos (Android / iOS / PC), top categorías, feed de actividad en vivo y canal de alertas Discord Webhook con prueba instantánea.
 
 ---
 
