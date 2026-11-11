@@ -38,14 +38,15 @@ Imposter/
 ├── src/
 │   ├── lib/
 │   │   ├── payment-config.ts    # 💳 Precios de planes, cuentas Pago Móvil, wallet Binance
-│   │   ├── coupon-server.ts     # 🎟️ Validación de cupones y RPC server functions
+│   │   ├── coupon-server.ts     # 🎟️ Validación de cupones, RPC server functions y gestión de fundadores
 │   │   ├── telemetry.ts         # 📊 Captura de eventos cliente (con filtro anti-CEO)
 │   │   ├── telemetry-server.ts  # 🌐 Reenvío de métricas al bot y a Discord
-│   │   ├── security.ts          # 🛡️ Criptografía HMAC, firmas de cupones, sanitización
+│   │   ├── security.ts          # 🛡️ Criptografía HMAC, firmas FNDR, cupones y sanitización
 │   │   ├── pwa-install.ts       # 📲 Lógica de instalación en pantalla de inicio (PWA)
 │   │   └── wake-lock.ts         # 💡 Evita que la pantalla se apague durante el juego
 │   ├── routes/
-│   │   └── index.tsx        # 🎮 CORAZÓN DEL JUEGO: UI, Sonidos, Fases, Modales, CEO
+│   │   ├── index.tsx        # 🎮 CORAZÓN DEL JUEGO: UI de partida, Categorías Lucide, Escáner, Fases
+│   │   └── ceo.tsx          # 👑 CENTRO DE MANDOS CEO: Página dedicada (/ceo) para Fundadores, Cobros y Métricas
 │   ├── styles.css           # 🎨 Estilos Tailwind, temas Glassmorphism y animaciones
 │   ├── server.ts            # ⚡ Servidor base TanStack Start / Nitro
 │   └── router.tsx           # 🚦 Enrutador principal
@@ -60,14 +61,15 @@ Imposter/
 
 ### Puntos Específicos de Modificación Frecuente:
 
-| ¿Qué quieres cambiar?                               | Archivo exacto              | Dónde mirar                                                                                                                  |
-| :-------------------------------------------------- | :-------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
-| **Agregar o cambiar palabras y temas**              | `src/routes/index.tsx`      | Desde la línea ~119 (`DEFAULT_CATEGORIES`), emojis en `CATEGORY_ICONS` (~l. 645) y lista PRO en `PRO_CATEGORIES` (~l. 1127). |
-| **Cambiar precios de los Pases PRO**                | `src/lib/payment-config.ts` | En el arreglo `PARTY_PASS_PLANS` (Pass 24h, Fin de Semana, Permanente).                                                      |
-| **Cambiar datos de Pago Móvil o Binance**           | `src/lib/payment-config.ts` | Objeto `DEFAULT_PAYMENT_CONFIG` (teléfono, cédula, banco, Binance Pay ID).                                                   |
-| **Ajustar el sonido táctil o la música de tensión** | `src/routes/index.tsx`      | Funciones `playPop`, `startScanSound`, `playImpostorReveal`, `playDebateTension`.                                            |
-| **El diseño del Escáner de Huella**                 | `src/routes/index.tsx`      | Buscador: `Biometric Laser Scanner Card` (~l. 6100).                                                                         |
-| **El Panel Ejecutivo CEO y su acceso**              | `src/routes/index.tsx`      | Funciones `isCeoAdmin`, modal `showCeoModal` y acceso maestro.                                                               |
+| ¿Qué quieres cambiar?                               | Archivo exacto              | Dónde mirar                                                                                     |
+| :-------------------------------------------------- | :-------------------------- | :---------------------------------------------------------------------------------------------- |
+| **Agregar o cambiar palabras y temas**              | `src/routes/index.tsx`      | Arreglo `DEFAULT_CATEGORIES`, componente `CategoryIcon` e iconos Lucide.                        |
+| **Página y Consola del CEO**                        | `src/routes/ceo.tsx`        | Ruta `/ceo`: Módulos de Fundadores (WhatsApp), Cobros, Testers y Métricas en vivo.              |
+| **Generador de Fundadores y 5 Pases**               | `src/lib/security.ts`       | Funciones `generateFounderCode`, `isValidFounderCode`, `generateGuestPass`, `isValidGuestPass`. |
+| **Cambiar precios de los Pases PRO**                | `src/lib/payment-config.ts` | En el arreglo `PARTY_PASS_PLANS` (Pass 24h, Fin de Semana, Permanente).                         |
+| **Cambiar datos de Pago Móvil o Binance**           | `src/lib/payment-config.ts` | Objeto `DEFAULT_PAYMENT_CONFIG` (teléfono, cédula, banco, Binance Pay ID).                      |
+| **Ajustar el sonido táctil o la música de tensión** | `src/routes/index.tsx`      | Funciones `playPop`, `startScanSound`, `playImpostorReveal`, `playDebateTension`.               |
+| **El diseño del Escáner de Huella**                 | `src/routes/index.tsx`      | Buscador: `Biometric Laser Scanner Card`.                                                       |
 
 ---
 

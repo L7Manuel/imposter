@@ -50,6 +50,17 @@ import {
   MessageSquare,
   Activity,
   RefreshCw,
+  Utensils,
+  MapPin,
+  PawPrint,
+  Briefcase,
+  Film,
+  Gamepad2,
+  Music2,
+  Globe2,
+  Dices,
+  Flame,
+  Package,
 } from "lucide-react";
 import { acquireScreenWakeLock, releaseScreenWakeLock } from "@/lib/wake-lock";
 import { ConfettiCanvas } from "@/lib/confetti";
@@ -71,6 +82,7 @@ import {
   VIP_COUPON_HASHES_ORDERED,
   STORAGE_KEYS,
   getDecryptedVipCodes,
+  generateGuestPass,
 } from "@/lib/security";
 import {
   consumeSingleUseCouponServerFn,
@@ -83,6 +95,9 @@ import {
   checkPaymentStatusServerFn,
   getPendingPaymentsServerFn,
   reviewPaymentServerFn,
+  consumeFounderServerFn,
+  consumeGuestPassServerFn,
+  getFounderGuestPassesServerFn,
 } from "@/lib/coupon-server";
 import { trackGameEvent } from "@/lib/telemetry";
 import { getGlobalMetricsServerFn, GlobalMetrics } from "@/lib/telemetry-server";
@@ -639,21 +654,47 @@ const DEFAULT_CATEGORIES: Record<string, string[]> = {
   ],
 };
 
-const CATEGORY_ICONS: Record<string, string> = {
-  Aleatoria: "🎲",
-  Comida: "🍕",
-  Lugares: "🏖️",
-  Animales: "🦁",
-  Objetos: "🎸",
-  Profesiones: "🕵️",
-  "Cine y Series": "🎬",
-  Deportes: "⚽",
-  "Videojuegos y Geek": "🎮",
-  "Música y Artistas": "🎵",
-  "Países y Maravillas": "🌍",
-};
+function CategoryIcon({
+  category,
+  size = 18,
+  className = "",
+}: {
+  category: string;
+  size?: number;
+  className?: string;
+}) {
+  switch (category) {
+    case "Aleatoria":
+      return <Dices size={size} className={className} />;
+    case "Comida":
+      return <Utensils size={size} className={className} />;
+    case "Lugares":
+      return <MapPin size={size} className={className} />;
+    case "Animales":
+      return <PawPrint size={size} className={className} />;
+    case "Objetos":
+      return <Package size={size} className={className} />;
+    case "Profesiones":
+      return <Briefcase size={size} className={className} />;
+    case "Cine y Series":
+      return <Film size={size} className={className} />;
+    case "Deportes":
+      return <Trophy size={size} className={className} />;
+    case "Videojuegos y Geek":
+      return <Gamepad2 size={size} className={className} />;
+    case "Música y Artistas":
+      return <Music2 size={size} className={className} />;
+    case "Países y Maravillas":
+      return <Globe2 size={size} className={className} />;
+    case "Fiesta +18":
+    case "🔞 Fiesta +18":
+      return <Flame size={size} className={`text-rose-400 ${className}`} />;
+    default:
+      return <Package size={size} className={className} />;
+  }
+}
 
-const ADULT_CATEGORY = "🔞 Fiesta +18";
+const ADULT_CATEGORY = "Fiesta +18";
 const ADULT_WORDS = [
   "Tequila",
   "Resaca",
@@ -1169,7 +1210,11 @@ function Game() {
   const [isCeoAdmin, setIsCeoAdmin] = useState<boolean>(false);
   const [ceoSimulateFree, setCeoSimulateFree] = useState<boolean>(false);
   const [showProModal, setShowProModal] = useState<boolean>(false);
-  const [showCeoModal, setShowCeoModal] = useState<boolean>(false);
+  const [founderNumber, setFounderNumber] = useState<number | null>(null);
+  const [showFounderPassesModal, setShowFounderPassesModal] = useState<boolean>(false);
+  const [founderGuestPasses, setFounderGuestPasses] = useState<
+    Array<{ passIndex: number; code: string; redeemedAt: number | null }>
+  >([]);
   const [proModalView, setProModalView] = useState<"perks" | "checkout">("perks");
   const [selectedPayMethod, setSelectedPayMethod] = useState<
     "pagomovil" | "binance" | "international"
@@ -1376,6 +1421,11 @@ function Game() {
         localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
       }
 
+      const storedFounder = localStorage.getItem(STORAGE_KEYS.FOUNDER_NUMBER);
+      if (storedFounder && Number.isFinite(Number(storedFounder))) {
+        setFounderNumber(Number(storedFounder));
+      }
+
       const savedAnalytics = localStorage.getItem("impostor-analytics");
       if (savedAnalytics) {
         setAnalytics(JSON.parse(savedAnalytics));
@@ -1580,14 +1630,6 @@ function Game() {
       void releaseScreenWakeLock();
     };
   }, [phase, wakeLockEnabled]);
-
-  // Sincronizar formulario de cobros cuando el CEO abre su panel
-  useEffect(() => {
-    if (showCeoModal) {
-      setEditingPaymentConfig(paymentConfig);
-      setTasaInput(String(paymentConfig.pagoMovil.tasaBs || 55));
-    }
-  }, [showCeoModal, paymentConfig]);
 
   const trackAnalytics = (updater: (prev: AnalyticsState) => AnalyticsState) => {
     // 🛡️ Filtro de Tráfico Interno: Si el usuario es el CEO, no alterar analíticas
@@ -1904,37 +1946,17 @@ function Game() {
     };
   }, [activePaymentTracker, soundEnabled]);
 
-  // Sincronizar pagos pendientes para el CEO en tiempo real
+  // Sincronizar pases de embajador del Fundador
   useEffect(() => {
-    if (!showCeoModal || ceoModalTab !== "payments") return;
-    void refreshCeoPayments();
-    const interval = setInterval(() => {
-      void refreshCeoPayments();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [showCeoModal, ceoModalTab]);
-
-  const refreshGlobalMetrics = async (reset = false) => {
-    setLoadingGlobalMetrics(true);
-    try {
-      const res = await getGlobalMetricsServerFn({ data: { reset } });
-      setGlobalMetrics(res);
-    } catch {
-      /* ignore */
-    } finally {
-      setLoadingGlobalMetrics(false);
-    }
-  };
-
-  // Sincronizar telemetría global en vivo para el CEO
-  useEffect(() => {
-    if (!showCeoModal || ceoModalTab !== "metrics") return;
-    void refreshGlobalMetrics();
-    const interval = setInterval(() => {
-      void refreshGlobalMetrics();
-    }, 6000);
-    return () => clearInterval(interval);
-  }, [showCeoModal, ceoModalTab]);
+    if (!founderNumber) return;
+    getFounderGuestPassesServerFn({ data: { founderNumber } })
+      .then((res) => {
+        if (res.success && res.guestPasses) {
+          setFounderGuestPasses(res.guestPasses);
+        }
+      })
+      .catch(() => {});
+  }, [founderNumber, showFounderPassesModal]);
 
   const handleRedeemCode = async () => {
     playPop(soundEnabled);
@@ -1949,12 +1971,12 @@ function Game() {
       return;
     }
 
-    const { role, token, couponIdHash } = verifyAccessCode(proCodeInput, usedCoupons);
+    const { role, token, couponIdHash, meta } = verifyAccessCode(proCodeInput, usedCoupons);
     if (role === "already_used") {
       playBeep(0.3, 200, soundEnabled);
       setProCodeFeedback({
         type: "error",
-        text: "⚠️ Este cupón de prueba ya fue utilizado y es de un solo uso.",
+        text: "Este cupón o pase ya fue utilizado y es de un solo uso.",
       });
       return;
     }
@@ -1973,7 +1995,55 @@ function Game() {
       if (codes.length > 0) setCeoDecryptedCodes(codes);
       setProCodeFeedback({
         type: "success",
-        text: "¡Bienvenido CEO! Acceso Maestro y Panel Ejecutivo activados.",
+        text: "¡Bienvenido CEO! Redirigiendo a tu Centro de Mandos...",
+      });
+      setProCodeInput("");
+      setTimeout(() => {
+        window.location.href = "/ceo";
+      }, 1000);
+    } else if (role === "founder" && token && meta?.founderNumber) {
+      playFanfare(true, soundEnabled);
+      setIsProUnlocked(true);
+      setCeoSimulateFree(false);
+      setProExpiresAt(null);
+      setFounderNumber(meta.founderNumber);
+      setFailedCodeAttempts(0);
+      localStorage.setItem(STORAGE_KEYS.PRO_TOKEN, token);
+      localStorage.setItem(STORAGE_KEYS.FOUNDER_NUMBER, String(meta.founderNumber));
+      localStorage.setItem(STORAGE_KEYS.FOUNDER_CODE, proCodeInput.trim().toUpperCase());
+      localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
+
+      consumeFounderServerFn({ data: { code: proCodeInput.trim().toUpperCase() } }).catch(() => {});
+
+      setProCodeFeedback({
+        type: "success",
+        text: `¡Bienvenido Miembro Fundador #${meta.founderNumber}! Tienes acceso vitalicio y tus 5 Pases de Invitación activos.`,
+      });
+      setProCodeInput("");
+      setTimeout(() => {
+        setShowProModal(false);
+        setProCodeFeedback(null);
+        setShowFounderPassesModal(true);
+      }, 1500);
+    } else if (role === "guest_pass" && token && meta?.founderNumber) {
+      playFanfare(true, soundEnabled);
+      setIsProUnlocked(true);
+      setCeoSimulateFree(false);
+      const guestNow = Date.now();
+      const expiresAt = guestNow + 24 * 3600 * 1000;
+      const signedExpiry = createSignedExpiry(token, expiresAt);
+      setProExpiresAt(expiresAt);
+      setFailedCodeAttempts(0);
+      localStorage.setItem(STORAGE_KEYS.PRO_TOKEN, token);
+      localStorage.setItem(STORAGE_KEYS.PRO_EXPIRES, signedExpiry);
+
+      consumeGuestPassServerFn({ data: { passCode: proCodeInput.trim().toUpperCase() } }).catch(
+        () => {},
+      );
+
+      setProCodeFeedback({
+        type: "success",
+        text: "¡Pase de Invitado activado! Tienes 24 Horas de Fiesta PRO desbloqueadas.",
       });
       setProCodeInput("");
       setTimeout(() => {
@@ -2802,17 +2872,17 @@ function Game() {
             onClick={() => {
               playPop(soundEnabled);
               if (isCeoAdmin) {
-                setShowCeoModal(true);
+                window.location.href = "/ceo";
               } else {
                 openPaywall();
               }
             }}
-            aria-label={isCeoAdmin ? "Abrir Panel Ejecutivo CEO" : "Party Pass PRO"}
+            aria-label={isCeoAdmin ? "Abrir Centro de Mandos CEO (/ceo)" : "Party Pass PRO"}
             title={
               isCeoAdmin
                 ? ceoSimulateFree
-                  ? "Modo CEO (Simulando Gratis)"
-                  : "Panel Ejecutivo CEO Activo"
+                  ? "Modo CEO (Simulando Gratis) — Clic para abrir /ceo"
+                  : "Abrir Centro de Mandos CEO (/ceo)"
                 : hasPro
                   ? "Party Pass PRO Activo"
                   : "Desbloquear Party Pass PRO"
@@ -2827,6 +2897,25 @@ function Game() {
           >
             <Crown size={14} />
           </button>
+
+          {/* Botón de Pases para Miembros Fundadores */}
+          {founderNumber !== null && (
+            <>
+              <div className="mx-0.5 h-3.5 w-px bg-white/10" />
+              <button
+                type="button"
+                onClick={() => {
+                  playPop(soundEnabled);
+                  setShowFounderPassesModal(true);
+                }}
+                title="Tus 5 Pases de Invitación"
+                className="flex h-7 items-center gap-1 rounded-full bg-amber-500/20 border border-amber-500/40 px-2 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/30 transition cursor-pointer"
+              >
+                <Ticket size={12} />
+                <span className="hidden xs:inline">5 Pases</span>
+              </button>
+            </>
+          )}
 
           <div className="mx-0.5 h-3.5 w-px bg-white/10" />
 
@@ -3246,7 +3335,6 @@ function Game() {
                       const isSelected = c === category;
                       const isProCat = PRO_CATEGORIES.includes(c) || c in custom;
                       const isLockedByPro = isProCat && !hasPro;
-                      const icon = CATEGORY_ICONS[c] ?? "✨";
                       const count = allCats[c]?.length ?? 0;
                       const playedCount = usedWords[c]?.length ?? 0;
                       return (
@@ -3276,7 +3364,15 @@ function Game() {
                               <Crown size={10} />
                             </span>
                           )}
-                          <span className="text-2xl mb-1">{icon}</span>
+                          <div
+                            className={`flex h-10 w-10 items-center justify-center rounded-xl mb-1.5 border transition ${
+                              isSelected
+                                ? "bg-black/20 border-white/20 text-primary-foreground"
+                                : "bg-white/5 border-white/10 text-primary"
+                            }`}
+                          >
+                            <CategoryIcon category={c} size={18} />
+                          </div>
                           <span className="text-xs font-semibold leading-tight line-clamp-1">
                             {c}
                           </span>
@@ -3332,8 +3428,10 @@ function Game() {
                         <Crown size={10} />
                       </span>
                     )}
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="text-2xl">🔞</span>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400">
+                        <Flame size={18} />
+                      </div>
                       {isAdultUnlocked && hasPro ? (
                         <Unlock size={13} className="text-emerald-400" />
                       ) : (
@@ -3810,951 +3908,93 @@ function Game() {
         </div>
       )}
 
-      {/* MODAL: PANEL EJECUTIVO CEO DEDICADO */}
-      {showCeoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="flex max-h-[92vh] w-full max-w-md flex-col rounded-3xl glass-panel border-2 border-amber-400/50 shadow-2xl overflow-hidden">
-            {/* Header CEO */}
-            <div className="relative bg-gradient-to-r from-amber-500/25 via-yellow-500/15 to-transparent px-5 py-4 border-b border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 text-black font-bold shadow-md">
-                  <Crown size={20} />
-                </div>
-                <div>
-                  <h3 className="font-display text-lg tracking-wider text-amber-300">
-                    PANEL EJECUTIVO CEO
-                  </h3>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 border border-amber-400/40 px-2 py-0.2 text-[9px] font-bold text-amber-200">
-                    <ShieldCheck size={10} /> Acceso Maestro Activo
-                  </span>
-                </div>
+      {/* MODAL: TUS 5 PASES DE INVITACIÓN (PARA MIEMBROS FUNDADORES) */}
+      {showFounderPassesModal && founderNumber !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="flex max-h-[92vh] w-full max-w-sm flex-col rounded-3xl glass-panel border border-amber-500/40 p-5 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Crown size={20} className="text-amber-400" />
+                <h3 className="font-display text-base text-amber-300">TUS 5 PASES DE INVITACIÓN</h3>
               </div>
               <button
-                onClick={() => {
-                  playPop(soundEnabled);
-                  setShowCeoModal(false);
-                }}
-                aria-label="Cerrar Panel CEO"
-                className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-muted-foreground hover:text-white transition cursor-pointer"
+                onClick={() => setShowFounderPassesModal(false)}
+                className="p-1 rounded-lg bg-white/10 text-muted-foreground hover:text-white transition cursor-pointer"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Selector de Pestañas Ejecutivas */}
-            <div className="flex border-b border-white/10 bg-black/40 p-1.5 gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  playPop(soundEnabled);
-                  setCeoModalTab("coupons");
-                }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1 text-xs font-bold rounded-xl transition cursor-pointer ${
-                  ceoModalTab === "coupons"
-                    ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-black shadow-md font-extrabold"
-                    : "text-muted-foreground hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <Ticket size={13} />
-                <span>Cupones</span>
-                <span
-                  className={`rounded-full px-1.5 py-0.2 text-[9px] font-mono font-extrabold ${
-                    ceoModalTab === "coupons"
-                      ? "bg-black/25 text-black"
-                      : "bg-amber-400/20 text-amber-300"
-                  }`}
-                >
-                  {
-                    VIP_COUPON_HASHES_ORDERED.filter(
-                      (h) => usedCoupons.includes(h) || Boolean(serverCouponsMap[h]),
-                    ).length
-                  }
-                  /10
-                </span>
-              </button>
+            <p className="text-xs text-muted-foreground my-3">
+              Como Miembro Fundador Vitalicio, tienes 5 Pases Fiesta de 24h para regalar o revender
+              a tus amigos:
+            </p>
 
-              <button
-                type="button"
-                onClick={() => {
-                  playPop(soundEnabled);
-                  setCeoModalTab("payments");
-                }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1 text-xs font-bold rounded-xl transition cursor-pointer ${
-                  ceoModalTab === "payments"
-                    ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-black shadow-md font-extrabold"
-                    : "text-muted-foreground hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <Wallet size={13} />
-                <span>Cobros</span>
-                {ceoPendingPayments.filter((p) => p.status === "pending").length > 0 && (
-                  <span className="rounded-full bg-rose-500 text-white px-1.5 py-0.2 text-[9px] font-bold animate-pulse">
-                    {ceoPendingPayments.filter((p) => p.status === "pending").length}
-                  </span>
-                )}
-              </button>
+            <div className="flex flex-col gap-2 my-2 overflow-y-auto max-h-[50vh]">
+              {[1, 2, 3, 4, 5].map((idx) => {
+                const passCode = generateGuestPass(founderNumber, idx);
+                const passData = founderGuestPasses.find((p) => p.passIndex === idx);
+                const isUsed = passData ? passData.redeemedAt !== null : false;
 
-              <button
-                type="button"
-                onClick={() => {
-                  playPop(soundEnabled);
-                  setCeoModalTab("metrics");
-                }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1 text-xs font-bold rounded-xl transition cursor-pointer ${
-                  ceoModalTab === "metrics"
-                    ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-black shadow-md font-extrabold"
-                    : "text-muted-foreground hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <BarChart3 size={13} />
-                <span>Métricas</span>
-              </button>
-            </div>
+                const shareText =
+                  "¡Hola! 🎁 Te regalo este Pase Fiesta Oficial de 24 Horas para Imposter.\n\n🔑 Código: " +
+                  passCode +
+                  "\n📲 Entra a jugar: https://imposter.manu-07games.workers.dev\n\nPasos: Abre el enlace, pulsa la corona y canjea tu código para jugar gratis todo el día.";
+                const whatsappUrl = "https://wa.me/?text=" + encodeURIComponent(shareText);
 
-            {/* Scrollable Body según la pestaña activa */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 smooth-scroll">
-              {/* TAB 1: MONITOR DE CUPONES VIP (48H) */}
-              {ceoModalTab === "coupons" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                        🎟️ Monitor Cupones VIP (48h)
-                      </span>
-                      <span className="rounded-full bg-amber-400/20 border border-amber-400/40 px-2 py-0.5 text-[10px] font-bold text-amber-300">
-                        {
-                          VIP_COUPON_HASHES_ORDERED.filter(
-                            (h) => usedCoupons.includes(h) || Boolean(serverCouponsMap[h]),
-                          ).length
+                return (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 p-2.5 text-xs"
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-display text-muted-foreground">Pase #{idx}:</span>
+                        <span className="font-mono font-bold text-foreground">{passCode}</span>
+                      </div>
+                      <span
+                        className={
+                          "block text-[10px] font-medium mt-0.5 " +
+                          (isUsed ? "text-emerald-400" : "text-amber-400/80")
                         }
-                        /10 en uso
+                      >
+                        {isUsed ? "Canjeado" : "Disponible"}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={refreshCouponStatus}
-                      title="Actualizar estado con el servidor"
-                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-white transition cursor-pointer px-2 py-1 rounded-lg hover:bg-white/10"
-                    >
-                      <RotateCcw size={12} />
-                      <span>Sincronizar</span>
-                    </button>
-                  </div>
 
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Comparte invitaciones directas por WhatsApp o copia el mensaje listo para el
-                    tester.
-                  </p>
-
-                  {/* Listado de los 10 cupones */}
-                  <div className="space-y-2">
-                    {VIP_COUPON_HASHES_ORDERED.map((hash, idx) => {
-                      const num = idx + 1;
-                      const isUsed = usedCoupons.includes(hash) || Boolean(serverCouponsMap[hash]);
-                      const activatedAt = serverCouponsMap[hash]?.activatedAt;
-                      const timeInfo = activatedAt ? formatRemainingTime(activatedAt) : null;
-                      const assignedName =
-                        couponNames[num] || (num === 1 ? "Ivana" : `Tester #${num}`);
-                      const couponCode = ceoDecryptedCodes[idx];
-
-                      return (
-                        <div
-                          key={hash}
-                          className={`rounded-xl p-2.5 border text-xs transition ${
-                            isUsed
-                              ? timeInfo?.isExpired
-                                ? "bg-rose-500/10 border-rose-500/30"
-                                : "bg-amber-500/10 border-amber-500/35 shadow-sm"
-                              : "bg-white/5 border-white/10"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-mono font-bold text-amber-300 shrink-0">
-                                #{String(num).padStart(2, "0")}
-                              </span>
-
-                              {editingCouponIdx === num ? (
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    value={editingNameInput}
-                                    onChange={(e) => setEditingNameInput(e.target.value)}
-                                    placeholder="Nombre..."
-                                    className="w-24 rounded-lg bg-black/60 border border-amber-400 px-2 py-0.5 text-xs text-white outline-none"
-                                    autoFocus
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter")
-                                        handleSaveTesterName(num, editingNameInput);
-                                      if (e.key === "Escape") setEditingCouponIdx(null);
-                                    }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSaveTesterName(num, editingNameInput)}
-                                    className="p-1 rounded bg-amber-400 text-black text-xs font-bold"
-                                  >
-                                    <Check size={12} />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <span className="font-semibold text-foreground truncate max-w-[110px] sm:max-w-[140px]">
-                                    {assignedName}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingCouponIdx(num);
-                                      setEditingNameInput(assignedName);
-                                    }}
-                                    title="Editar nombre del tester"
-                                    className="text-muted-foreground hover:text-white transition p-0.5"
-                                  >
-                                    <Edit3 size={11} />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2 shrink-0">
-                              {isUsed ? (
-                                timeInfo?.isExpired ? (
-                                  <span className="rounded-full bg-rose-500/20 border border-rose-500/30 px-2 py-0.5 text-[10px] font-bold text-rose-300">
-                                    Expirado
-                                  </span>
-                                ) : (
-                                  <span className="rounded-full bg-amber-400/20 border border-amber-400/40 px-2 py-0.5 text-[10px] font-bold text-amber-300 flex items-center gap-1">
-                                    <Clock size={10} />
-                                    {timeInfo?.text ?? "48h activo"}
-                                  </span>
-                                )
-                              ) : (
-                                <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                                  Disponible
-                                </span>
-                              )}
-
-                              {isUsed && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleResetSingleCoupon(hash)}
-                                  title="Liberar cupón para poder reusarlo"
-                                  className="text-xs text-muted-foreground hover:text-rose-300 transition p-1 hover:bg-white/10 rounded-md"
-                                >
-                                  <RotateCcw size={12} />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Fechas detalladas y barra de progreso */}
-                          {isUsed && activatedAt && (
-                            <div className="mt-2 pt-2 border-t border-white/10 space-y-1.5">
-                              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                                <span>🟢 {formatCouponDate(activatedAt)}</span>
-                                <span>
-                                  🔴 {formatCouponDate(activatedAt + TESTER_COUPON_DURATION_MS)}
-                                </span>
-                              </div>
-                              {timeInfo && (
-                                <div className="w-full bg-black/40 h-1.5 rounded-full overflow-hidden border border-white/5">
-                                  <div
-                                    className={`h-full rounded-full transition-all duration-500 ${
-                                      timeInfo.percentElapsed > 85
-                                        ? "bg-rose-500"
-                                        : "bg-gradient-to-r from-amber-400 to-yellow-500"
-                                    }`}
-                                    style={{ width: `${timeInfo.percentElapsed}%` }}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Herramientas de Invitación Directa para el CEO */}
-                          {couponCode && (
-                            <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between gap-1.5 flex-wrap">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="font-mono text-[10px] text-amber-300 font-bold bg-amber-400/10 border border-amber-400/25 px-2 py-0.5 rounded-md">
-                                  {couponCode}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                                <button
-                                  type="button"
-                                  onClick={() => handleShareCoupon(couponCode, num, assignedName)}
-                                  title="Enviar invitación por WhatsApp"
-                                  className="flex items-center gap-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/35 px-2.5 py-1 text-[10px] font-bold transition active:scale-95 cursor-pointer"
-                                >
-                                  <Share2 size={11} />
-                                  <span>WhatsApp</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleCopyCouponLink(couponCode, num, assignedName)
-                                  }
-                                  title="Copiar mensaje con enlace al portapapeles"
-                                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold border transition active:scale-95 cursor-pointer ${
-                                    copiedCouponIdx === num
-                                      ? "bg-emerald-500 text-black border-emerald-400 font-extrabold"
-                                      : "bg-white/10 hover:bg-white/20 text-white border-white/15"
-                                  }`}
-                                >
-                                  {copiedCouponIdx === num ? (
-                                    <>
-                                      <Check size={11} />
-                                      <span>¡Copiado!</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Copy size={11} />
-                                      <span>Copiar Link</span>
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {usedCoupons.length > 0 && (
-                    <div className="pt-2">
+                    <div className="flex items-center gap-1">
                       <button
-                        type="button"
-                        onClick={async () => {
-                          playPop(soundEnabled);
-                          setUsedCoupons([]);
-                          localStorage.removeItem(STORAGE_KEYS.USED_COUPONS);
-                          try {
-                            await consumeSingleUseCouponServerFn({
-                              data: { couponIdHash: "", action: "reset" },
-                            });
-                          } catch {
-                            /* ignore */
+                        onClick={() => {
+                          if (typeof navigator !== "undefined" && navigator.clipboard) {
+                            navigator.clipboard.writeText(passCode);
                           }
                         }}
-                        className="w-full rounded-xl bg-amber-500/20 hover:bg-amber-500/30 py-2.5 text-xs font-semibold text-amber-300 border border-amber-500/30 transition cursor-pointer text-center"
+                        title="Copiar Código"
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white transition cursor-pointer"
                       >
-                        🔄 Reactivar Todos los Cupones ({usedCoupons.length})
+                        <Copy size={13} />
                       </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB 2: CONFIGURACIÓN DE MÉTODOS DE PAGO Y APROBACIONES */}
-              {ceoModalTab === "payments" && (
-                <div className="space-y-4">
-                  {/* SECCIÓN 1: PAGOS PENDIENTES DE APROBACIÓN */}
-                  <div className="rounded-2xl bg-black/40 p-3.5 border border-amber-400/40 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                          <Bell size={13} className="text-amber-400" /> Aprobaciones en 1-Toque
-                        </span>
-                        {ceoPendingPayments.filter((p) => p.status === "pending").length > 0 && (
-                          <span className="rounded-full bg-rose-500 text-white px-2 py-0.5 text-[9px] font-bold animate-pulse">
-                            {ceoPendingPayments.filter((p) => p.status === "pending").length}{" "}
-                            pendientes
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={refreshCeoPayments}
-                        title="Actualizar pagos desde el servidor"
-                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-white transition cursor-pointer px-2 py-1 rounded-lg hover:bg-white/10"
+                      <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Compartir por WhatsApp"
+                        className="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 transition"
                       >
-                        <RotateCcw size={11} className={ceoLoadingPayments ? "animate-spin" : ""} />
-                        <span>Refrescar</span>
-                      </button>
+                        <Send size={13} />
+                      </a>
                     </div>
-
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Revisa tu app de banco o Binance. Al tocar <strong>Aprobar</strong>, el Party
-                      Pass PRO del cliente se desbloquea en su teléfono al instante sin enviar
-                      códigos a mano.
-                    </p>
-
-                    {ceoPendingPayments.filter((p) => p.status === "pending").length > 0 ? (
-                      <div className="space-y-2">
-                        {ceoPendingPayments
-                          .filter((p) => p.status === "pending")
-                          .map((pay) => (
-                            <div
-                              key={pay.id}
-                              className="rounded-xl bg-amber-500/10 border border-amber-400/40 p-3 space-y-2 shadow-sm"
-                            >
-                              <div className="flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <span className="font-bold text-white truncate max-w-[140px]">
-                                    {pay.customerName}
-                                  </span>
-                                  <span className="rounded-md bg-amber-400/20 px-1.5 py-0.2 text-[9px] font-bold text-amber-300">
-                                    {pay.plan === "founder" || pay.plan === "lifetime"
-                                      ? "👑 Fundador ($9.80)"
-                                      : pay.plan === "month"
-                                        ? "30 Días ($3.99)"
-                                        : pay.plan === "weekend"
-                                          ? "72h ($1.99)"
-                                          : "24h ($0.99)"}
-                                  </span>
-                                </div>
-                                <span className="text-[10px] text-muted-foreground font-mono">
-                                  {pay.id}
-                                </span>
-                              </div>
-
-                              {pay.discordContact && (
-                                <div className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
-                                  <span>Discord:</span>
-                                  <span className="font-mono bg-black/40 px-1.5 py-0.5 rounded border border-amber-400/30">
-                                    @{pay.discordContact.replace(/^@/, "")}
-                                  </span>
-                                </div>
-                              )}
-
-                              <div className="flex items-center justify-between text-xs bg-black/50 px-2.5 py-1.5 rounded-lg border border-white/5">
-                                <span className="text-muted-foreground text-[11px]">
-                                  {pay.method}
-                                </span>
-                                <span className="font-extrabold text-amber-300">
-                                  {pay.amountFormatted}
-                                </span>
-                                <span className="font-mono text-white font-bold bg-white/10 px-1.5 py-0.5 rounded text-[11px]">
-                                  Ref: #{pay.reference}
-                                </span>
-                              </div>
-
-                              <div className="flex gap-2 pt-1">
-                                <button
-                                  type="button"
-                                  disabled={ceoReviewingId === pay.id}
-                                  onClick={() => handleReviewPayment(pay.id, "approve")}
-                                  className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black py-2 text-xs font-extrabold shadow-md transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-                                >
-                                  {ceoReviewingId === pay.id ? (
-                                    <Loader2 size={12} className="animate-spin" />
-                                  ) : (
-                                    <Check size={12} />
-                                  )}
-                                  <span>✅ Aprobar Acceso</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={ceoReviewingId === pay.id}
-                                  onClick={() => handleReviewPayment(pay.id, "reject")}
-                                  className="rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 px-3 py-2 text-xs font-semibold transition active:scale-95 cursor-pointer flex items-center justify-center gap-1 disabled:opacity-50"
-                                >
-                                  <X size={12} />
-                                  <span>Rechazar</span>
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    ) : (
-                      <div className="rounded-xl bg-white/5 border border-white/10 p-3 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                        <CheckCircle2 size={14} className="text-emerald-400" />
-                        <span>Al día: No hay solicitudes de pago pendientes.</span>
-                      </div>
-                    )}
                   </div>
-
-                  {/* SECCIÓN 2: DATOS BANCARIOS Y PASARELAS */}
-                  <div className="rounded-2xl bg-black/40 p-3.5 border border-white/10 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                        <Wallet size={13} className="text-amber-400" /> Cuentas para Recibir Pagos
-                      </span>
-                    </div>
-
-                    {/* Pago Móvil */}
-                    <div className="rounded-xl bg-white/5 p-2.5 border border-white/10 space-y-2">
-                      <span className="text-[10px] font-bold uppercase text-amber-300 flex items-center gap-1">
-                        <Building2 size={11} /> 🇻🇪 Datos de Pago Móvil
-                      </span>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          value={editingPaymentConfig.pagoMovil.banco}
-                          onChange={(e) =>
-                            setEditingPaymentConfig((prev) => ({
-                              ...prev,
-                              pagoMovil: { ...prev.pagoMovil, banco: e.target.value },
-                            }))
-                          }
-                          placeholder="Banco (ej. Banesco)"
-                          className="rounded-lg border border-white/15 bg-black/50 px-2.5 py-1 text-xs text-foreground outline-none focus:border-amber-400"
-                        />
-                        <input
-                          value={editingPaymentConfig.pagoMovil.telefono}
-                          onChange={(e) =>
-                            setEditingPaymentConfig((prev) => ({
-                              ...prev,
-                              pagoMovil: { ...prev.pagoMovil, telefono: e.target.value },
-                            }))
-                          }
-                          placeholder="Teléfono (0412...)"
-                          className="rounded-lg border border-white/15 bg-black/50 px-2.5 py-1 text-xs text-foreground outline-none focus:border-amber-400"
-                        />
-                        <input
-                          value={editingPaymentConfig.pagoMovil.cedula}
-                          onChange={(e) =>
-                            setEditingPaymentConfig((prev) => ({
-                              ...prev,
-                              pagoMovil: { ...prev.pagoMovil, cedula: e.target.value },
-                            }))
-                          }
-                          placeholder="Cédula (V-12345678)"
-                          className="rounded-lg border border-white/15 bg-black/50 px-2.5 py-1 text-xs text-foreground outline-none focus:border-amber-400"
-                        />
-                        <input
-                          value={editingPaymentConfig.pagoMovil.titular}
-                          onChange={(e) =>
-                            setEditingPaymentConfig((prev) => ({
-                              ...prev,
-                              pagoMovil: { ...prev.pagoMovil, titular: e.target.value },
-                            }))
-                          }
-                          placeholder="Nombre del Titular"
-                          className="rounded-lg border border-white/15 bg-black/50 px-2.5 py-1 text-xs text-foreground outline-none focus:border-amber-400"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2 pt-1">
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          Tasa Ref (Bs/$):
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={tasaInput}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/[^0-9.]/g, "");
-                            const parts = val.split(".");
-                            const cleanVal =
-                              parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : val;
-                            setTasaInput(cleanVal);
-                            const parsed = parseFloat(cleanVal);
-                            if (!isNaN(parsed) && parsed > 0) {
-                              setEditingPaymentConfig((prev) => ({
-                                ...prev,
-                                pagoMovil: {
-                                  ...prev.pagoMovil,
-                                  tasaBs: parsed,
-                                },
-                              }));
-                            }
-                          }}
-                          onBlur={() => {
-                            const parsed = parseFloat(tasaInput);
-                            if (isNaN(parsed) || parsed <= 0) {
-                              setTasaInput("55");
-                              setEditingPaymentConfig((prev) => ({
-                                ...prev,
-                                pagoMovil: {
-                                  ...prev.pagoMovil,
-                                  tasaBs: 55,
-                                },
-                              }));
-                            } else {
-                              setTasaInput(String(parsed));
-                            }
-                          }}
-                          placeholder="55"
-                          className="w-20 rounded-lg border border-white/15 bg-black/50 px-2 py-0.5 text-xs text-amber-300 font-bold outline-none focus:border-amber-400 text-center"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Binance Pay */}
-                    <div className="rounded-xl bg-white/5 p-2.5 border border-white/10 space-y-2">
-                      <span className="text-[10px] font-bold uppercase text-yellow-400 flex items-center gap-1">
-                        🟡 Binance Pay (USDT)
-                      </span>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          value={editingPaymentConfig.binancePay.payId}
-                          onChange={(e) =>
-                            setEditingPaymentConfig((prev) => ({
-                              ...prev,
-                              binancePay: { ...prev.binancePay, payId: e.target.value },
-                            }))
-                          }
-                          placeholder="Binance Pay ID"
-                          className="rounded-lg border border-white/15 bg-black/50 px-2.5 py-1 text-xs text-foreground outline-none focus:border-amber-400"
-                        />
-                        <input
-                          value={editingPaymentConfig.binancePay.nickname}
-                          onChange={(e) =>
-                            setEditingPaymentConfig((prev) => ({
-                              ...prev,
-                              binancePay: { ...prev.binancePay, nickname: e.target.value },
-                            }))
-                          }
-                          placeholder="Nickname en Binance"
-                          className="rounded-lg border border-white/15 bg-black/50 px-2.5 py-1 text-xs text-foreground outline-none focus:border-amber-400"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Enlace Internacional */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                        <CreditCard size={10} className="text-blue-400" /> Enlace Tarjeta
-                        Internacional (Whop / Stripe)
-                      </label>
-                      <input
-                        value={editingPaymentConfig.internationalLink}
-                        onChange={(e) =>
-                          setEditingPaymentConfig((prev) => ({
-                            ...prev,
-                            internationalLink: e.target.value,
-                          }))
-                        }
-                        placeholder="https://whop.com/... (opcional)"
-                        className="w-full rounded-xl border border-white/15 bg-black/50 px-3 py-1.5 text-xs text-foreground outline-none focus:border-amber-400"
-                      />
-                    </div>
-
-                    {/* Enlace de Invitación a Discord */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                        <MessageSquare size={10} className="text-indigo-400" /> Enlace de Invitación
-                        a Discord (Pase Fundador)
-                      </label>
-                      <input
-                        value={editingPaymentConfig.discordInviteUrl || ""}
-                        onChange={(e) =>
-                          setEditingPaymentConfig((prev) => ({
-                            ...prev,
-                            discordInviteUrl: e.target.value,
-                          }))
-                        }
-                        placeholder="https://discord.gg/..."
-                        className="w-full rounded-xl border border-white/15 bg-black/50 px-3 py-1.5 text-xs text-foreground outline-none focus:border-amber-400"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleSavePaymentConfig}
-                      className="w-full rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 py-2.5 text-xs font-bold text-black shadow-md hover:brightness-110 active:scale-95 transition cursor-pointer"
-                    >
-                      💾 Guardar Configuración de Cobros
-                    </button>
-
-                    {paymentSavedFeedback && (
-                      <p className="text-[11px] font-semibold text-emerald-400 text-center animate-in fade-in">
-                        {paymentSavedFeedback}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* SECCIÓN 3: RECURSOS CEO (LOGO DISCORD) */}
-                  <div className="rounded-2xl bg-black/40 p-3.5 border border-white/10 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold text-foreground">Logo Oficial Imposter</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        PNG en alta resolución (512x512) para tu Discord.
-                      </p>
-                    </div>
-                    <a
-                      href="/icon-512.png"
-                      download="imposter-logo-512.png"
-                      className="rounded-xl bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 text-xs font-bold border border-white/15 transition flex items-center gap-1.5 shrink-0"
-                    >
-                      <Download size={13} />
-                      <span>Descargar PNG</span>
-                    </a>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: RADAR GLOBAL DE MÉTRICAS Y AJUSTES */}
-              {ceoModalTab === "metrics" && (
-                <div className="space-y-4">
-                  {/* Encabezado con estado en vivo y botón de refresco */}
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Radar Global en Vivo
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void refreshGlobalMetrics()}
-                      disabled={loadingGlobalMetrics}
-                      className="rounded-lg bg-white/10 hover:bg-white/20 px-2.5 py-1 text-[11px] font-bold text-foreground border border-white/10 transition cursor-pointer flex items-center gap-1.5"
-                    >
-                      <RefreshCw
-                        size={11}
-                        className={loadingGlobalMetrics ? "animate-spin text-amber-400" : ""}
-                      />
-                      <span>{loadingGlobalMetrics ? "Actualizando..." : "Actualizar"}</span>
-                    </button>
-                  </div>
-
-                  {/* Tarjetas de Métricas Globales */}
-                  {(() => {
-                    const started = globalMetrics?.totalRoundsStarted ?? analytics.roundsPlayed;
-                    const completed =
-                      globalMetrics?.totalRoundsCompleted ?? analytics.roundsCompleted;
-                    const paywall = globalMetrics?.totalPaywallViews ?? analytics.paywallViews;
-                    const pwa = globalMetrics?.totalPwaInstalls ?? 0;
-
-                    return (
-                      <div className="grid grid-cols-4 gap-2 text-center">
-                        <div className="rounded-2xl bg-black/40 p-2.5 border border-blue-500/30">
-                          <span className="font-display text-xl text-blue-400 block">
-                            {started}
-                          </span>
-                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">
-                            Iniciadas
-                          </span>
-                        </div>
-                        <div className="rounded-2xl bg-black/40 p-2.5 border border-emerald-500/30">
-                          <span className="font-display text-xl text-emerald-400 block">
-                            {completed}
-                          </span>
-                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">
-                            Completadas
-                          </span>
-                        </div>
-                        <div className="rounded-2xl bg-black/40 p-2.5 border border-amber-500/30">
-                          <span className="font-display text-xl text-amber-400 block">
-                            {paywall}
-                          </span>
-                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">
-                            Clics PRO
-                          </span>
-                        </div>
-                        <div className="rounded-2xl bg-black/40 p-2.5 border border-purple-500/30">
-                          <span className="font-display text-xl text-purple-400 block">{pwa}</span>
-                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">
-                            PWA Installs
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Desglose de Dispositivos */}
-                  {(() => {
-                    const android = globalMetrics?.deviceCounts.android ?? 0;
-                    const ios = globalMetrics?.deviceCounts.ios ?? 0;
-                    const desktop = globalMetrics?.deviceCounts.desktop ?? 0;
-                    const totalDev = android + ios + desktop;
-                    const pAndroid = totalDev > 0 ? Math.round((android / totalDev) * 100) : 0;
-                    const pIos = totalDev > 0 ? Math.round((ios / totalDev) * 100) : 0;
-                    const pDesktop = totalDev > 0 ? Math.round((desktop / totalDev) * 100) : 0;
-
-                    return (
-                      <div className="rounded-2xl bg-black/30 p-3 border border-white/10 space-y-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                          <Smartphone size={12} className="text-emerald-400" /> Dispositivos de la
-                          Comunidad
-                        </span>
-                        <div className="grid grid-cols-3 gap-1.5 text-center">
-                          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2">
-                            <span className="text-xs font-bold text-emerald-300 block">
-                              🤖 {android} ({pAndroid}%)
-                            </span>
-                            <span className="text-[9px] text-muted-foreground">Android</span>
-                          </div>
-                          <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-2">
-                            <span className="text-xs font-bold text-blue-300 block">
-                              🍏 {ios} ({pIos}%)
-                            </span>
-                            <span className="text-[9px] text-muted-foreground">iPhone / iOS</span>
-                          </div>
-                          <div className="rounded-xl bg-purple-500/10 border border-purple-500/20 p-2">
-                            <span className="text-xs font-bold text-purple-300 block">
-                              💻 {desktop} ({pDesktop}%)
-                            </span>
-                            <span className="text-[9px] text-muted-foreground">PC / Web</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Categorías más jugadas a nivel global */}
-                  {(() => {
-                    const catCounts =
-                      globalMetrics && Object.keys(globalMetrics.categoryCounts).length > 0
-                        ? globalMetrics.categoryCounts
-                        : analytics.categoryCounts;
-
-                    if (Object.keys(catCounts).length === 0) return null;
-
-                    return (
-                      <div className="rounded-2xl bg-black/30 p-3 border border-white/10 space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                          <BarChart3 size={12} className="text-amber-400" /> Categorías más jugadas
-                          (Global)
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {Object.entries(catCounts)
-                            .sort((a, b) => b[1] - a[1])
-                            .slice(0, 5)
-                            .map(([cat, count]) => (
-                              <span
-                                key={cat}
-                                className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-semibold text-foreground flex items-center gap-1"
-                              >
-                                {CATEGORY_ICONS[cat] ?? "✨"} {cat}:{" "}
-                                <strong className="text-amber-300">{count}</strong>
-                              </span>
-                            ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Actividad en vivo reciente */}
-                  {globalMetrics?.recentEvents && globalMetrics.recentEvents.length > 0 && (
-                    <div className="rounded-2xl bg-black/30 p-3 border border-white/10 space-y-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <Activity size={12} className="text-blue-400" /> Registro de Actividad
-                        Reciente
-                      </span>
-                      <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                        {globalMetrics.recentEvents.slice(0, 4).map((ev) => (
-                          <div
-                            key={ev.id}
-                            className="flex items-center justify-between text-[11px] bg-white/5 rounded-lg px-2.5 py-1"
-                          >
-                            <span className="text-foreground truncate max-w-[190px]">
-                              {ev.summary}
-                            </span>
-                            <span className="text-[9px] text-muted-foreground font-mono shrink-0">
-                              {ev.device}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Alertas en Discord #metricas-imposter */}
-                  <div className="rounded-2xl bg-black/40 p-3.5 border border-blue-500/30 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-1.5">
-                        <Bell size={13} className="text-blue-400" /> Radar en Vivo
-                        (#metricas-imposter)
-                      </span>
-                      {discordConnected && (
-                        <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-300 flex items-center gap-1">
-                          <Check size={9} /> Conectado
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Recibe avisos automáticos en tu canal <strong>#metricas-imposter</strong> cada
-                      vez que alguien inicie o termine una partida presencial o descargue la PWA.
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        value={discordWebhookInput}
-                        onChange={(e) => setDiscordWebhookInput(e.target.value)}
-                        placeholder="https://discord.com/api/webhooks/..."
-                        className="flex-1 rounded-xl border border-white/15 bg-black/50 px-3 py-2 text-xs font-mono text-foreground outline-none focus:border-blue-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveAndTestDiscord}
-                        className="rounded-xl bg-blue-600 hover:bg-blue-500 px-3 py-2 text-xs font-bold text-white transition cursor-pointer shrink-0"
-                      >
-                        Probar
-                      </button>
-                    </div>
-                    {discordFeedback && (
-                      <p
-                        className={`text-[11px] font-semibold ${
-                          discordFeedback.includes("Error") ? "text-rose-400" : "text-emerald-400"
-                        }`}
-                      >
-                        {discordFeedback}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Simular Usuario Gratis */}
-                  <div className="rounded-2xl bg-black/40 p-3.5 border border-white/10 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold text-foreground">
-                        Simular Usuario Gratis (Test Paywall)
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {ceoSimulateFree
-                          ? "Activado: Ves los candados PRO tal como un usuario gratuito."
-                          : "Desactivado: Tienes todas las funciones PRO desbloqueadas."}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        playPop(soundEnabled);
-                        const nextSim = !ceoSimulateFree;
-                        setCeoSimulateFree(nextSim);
-                        if (nextSim) {
-                          if (
-                            PRO_CATEGORIES.includes(category) ||
-                            category === ADULT_CATEGORY ||
-                            category in custom
-                          ) {
-                            setCategory("Aleatoria");
-                          }
-                          if (names.length > FREE_MAX_PLAYERS) {
-                            updateNames(names.slice(0, FREE_MAX_PLAYERS));
-                          }
-                          setRandomEventsEnabled(false);
-                          setJesterEnabled(false);
-                        }
-                      }}
-                      className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors cursor-pointer ${
-                        ceoSimulateFree ? "bg-amber-400" : "bg-white/20"
-                      }`}
-                    >
-                      <span
-                        className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                          ceoSimulateFree ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Acciones de Ajustes y Salida */}
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-white/10">
-                    <button
-                      type="button"
-                      onClick={resetAnalytics}
-                      className="flex-1 rounded-xl bg-white/10 hover:bg-white/20 px-3 py-2.5 text-xs font-semibold text-foreground transition cursor-pointer"
-                    >
-                      Limpiar Analíticas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        deactivateProAndCeo();
-                        setShowCeoModal(false);
-                      }}
-                      className="rounded-xl bg-rose-500/20 hover:bg-rose-500/30 px-3.5 py-2.5 text-xs font-semibold text-rose-300 border border-rose-500/30 transition cursor-pointer"
-                    >
-                      Salir Modo CEO y PRO
-                    </button>
-                  </div>
-                </div>
-              )}
+                );
+              })}
             </div>
+
+            <button
+              onClick={() => setShowFounderPassesModal(false)}
+              className="w-full mt-3 rounded-xl bg-white/10 hover:bg-white/15 py-2.5 text-xs font-semibold text-foreground transition cursor-pointer"
+            >
+              Cerrar
+            </button>
           </div>
         </div>
       )}

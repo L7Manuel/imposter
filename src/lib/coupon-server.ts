@@ -4,6 +4,10 @@ import {
   isValidStoredToken,
   createPurchaseApprovedToken,
   createSignedExpiry,
+  generateFounderCode,
+  isValidFounderCode,
+  generateGuestPass,
+  isValidGuestPass,
 } from "@/lib/security";
 import {
   PaymentConfig,
@@ -14,6 +18,20 @@ import {
   PARTY_PASS_PLANS,
 } from "@/lib/payment-config";
 
+export interface FounderRecord {
+  number: number;
+  code: string;
+  name: string;
+  issuedAt: number;
+  redeemedAt: number | null;
+  guestPasses: Array<{
+    passIndex: number;
+    code: string;
+    redeemedAt: number | null;
+    redeemedBy?: string;
+  }>;
+}
+
 declare global {
   var __imposterUsedCouponsMap:
     Map<string, { activatedAt: number; couponNumber: number }> | undefined;
@@ -21,6 +39,14 @@ declare global {
   var __imposterPaymentConfig: PaymentConfig | undefined;
   var __imposterPendingPayments: Map<string, PendingPayment> | undefined;
   var __imposterPaymentRateLimitMap: Map<string, number[]> | undefined;
+  var __imposterFoundersMap: Map<number, FounderRecord> | undefined;
+}
+
+function getServerFoundersMap(): Map<number, FounderRecord> {
+  if (!globalThis.__imposterFoundersMap) {
+    globalThis.__imposterFoundersMap = new Map();
+  }
+  return globalThis.__imposterFoundersMap;
 }
 
 function getServerCouponMap(): Map<string, { activatedAt: number; couponNumber: number }> {
@@ -525,4 +551,199 @@ export const reviewPaymentServerFn = createServerFn({ method: "POST" })
       .slice(0, 40);
 
     return { success: true, payments: updatedList };
+  });
+
+/**
+ * Obtiene la lista completa de Miembros Fundadores y el estado de sus 5 pases (solo CEO).
+ */
+export const getFoundersDataServerFn = createServerFn({ method: "POST" })
+  .validator((input: { ceoToken: string }) => input)
+  .handler(async ({ data }) => {
+    if (!isValidStoredToken(data.ceoToken, "ceo")) {
+      return { success: false, founders: [] };
+    }
+    const store = getServerFoundersMap();
+    const list = Array.from(store.values()).sort((a, b) => a.number - b.number);
+    return { success: true, founders: list };
+  });
+
+/**
+ * Emite un nuevo Pase Fundador correlativo con sus 5 pases de embajador (solo CEO).
+ */
+export const issueFounderServerFn = createServerFn({ method: "POST" })
+  .validator((input: { ceoToken: string; name?: string }) => input)
+  .handler(async ({ data }) => {
+    if (!isValidStoredToken(data.ceoToken, "ceo")) {
+      return { success: false, error: "No autorizado" };
+    }
+    const store = getServerFoundersMap();
+    const nextNumber = store.size + 1;
+    const code = generateFounderCode(nextNumber);
+    const guestPasses = [1, 2, 3, 4, 5].map((idx) => ({
+      passIndex: idx,
+      code: generateGuestPass(nextNumber, idx),
+      redeemedAt: null as number | null,
+    }));
+
+    const founder: FounderRecord = {
+      number: nextNumber,
+      code,
+      name: data.name?.trim() || `Fundador #${nextNumber}`,
+      issuedAt: Date.now(),
+      redeemedAt: null,
+      guestPasses,
+    };
+
+    store.set(nextNumber, founder);
+
+    return { success: true, founder };
+  });
+
+/**
+ * Registra el canje de un Pase Fundador en el servidor y notifica a Discord.
+ */
+export const consumeFounderServerFn = createServerFn({ method: "POST" })
+  .validator((input: { code: string; founderName?: string }) => input)
+  .handler(async ({ data }) => {
+    const check = isValidFounderCode(data.code);
+    if (!check.valid || check.number === null) {
+      return { success: false, error: "Código de fundador inválido" };
+    }
+
+    const store = getServerFoundersMap();
+    let founder = store.get(check.number);
+    if (!founder) {
+      // Auto-registrar si fue generado pero el store en memoria de este worker aún no lo tenía
+      const guestPasses = [1, 2, 3, 4, 5].map((idx) => ({
+        passIndex: idx,
+        code: generateGuestPass(check.number!, idx),
+        redeemedAt: null as number | null,
+      }));
+      founder = {
+        number: check.number,
+        code: data.code,
+        name: data.founderName?.trim() || `Fundador #${check.number}`,
+        issuedAt: Date.now(),
+        redeemedAt: Date.now(),
+        guestPasses,
+      };
+      store.set(check.number, founder);
+    } else {
+      founder.redeemedAt = Date.now();
+      if (data.founderName?.trim()) {
+        founder.name = data.founderName.trim();
+      }
+    }
+
+    await sendDiscordWebhookEmbed({
+      webhookUrl: "",
+      title: "👑 ¡NUEVO MIEMBRO FUNDADOR VITALICIO ACTIVADO! 🎉",
+      description: `¡Un cliente VIP acaba de activar su **Pase Fundador Vitalicio ($9.80)**!`,
+      color: 0xf59e0b,
+      fields: [
+        { name: "👑 Número", value: `#${founder.number}`, inline: true },
+        { name: "👤 Nombre", value: founder.name, inline: true },
+        { name: "🔑 Código Canjeado", value: `\`${data.code}\``, inline: true },
+        {
+          name: "⚡ Acción Requerida",
+          value:
+            "Asigna el rol `@⭐ Miembro Fundador VIP` en Discord para darle acceso a `#fundador-vip`.",
+          inline: false,
+        },
+      ],
+    });
+
+    return { success: true, founder };
+  });
+
+/**
+ * Obtiene los 5 pases de invitado de un fundador por su número.
+ */
+export const getFounderGuestPassesServerFn = createServerFn({ method: "POST" })
+  .validator((input: { founderNumber: number }) => input)
+  .handler(async ({ data }) => {
+    const store = getServerFoundersMap();
+    let founder = store.get(data.founderNumber);
+    if (!founder) {
+      // Auto-generar si el worker es nuevo
+      const guestPasses = [1, 2, 3, 4, 5].map((idx) => ({
+        passIndex: idx,
+        code: generateGuestPass(data.founderNumber, idx),
+        redeemedAt: null as number | null,
+      }));
+      founder = {
+        number: data.founderNumber,
+        code: generateFounderCode(data.founderNumber),
+        name: `Fundador #${data.founderNumber}`,
+        issuedAt: Date.now(),
+        redeemedAt: Date.now(),
+        guestPasses,
+      };
+      store.set(data.founderNumber, founder);
+    }
+    return { success: true, guestPasses: founder.guestPasses };
+  });
+
+/**
+ * Registra el canje de un Pase de Invitado (24h) y notifica a Discord.
+ */
+export const consumeGuestPassServerFn = createServerFn({ method: "POST" })
+  .validator((input: { passCode: string; guestName?: string }) => input)
+  .handler(async ({ data }) => {
+    const check = isValidGuestPass(data.passCode);
+    if (!check.valid || check.founderNumber === null || check.passIndex === null) {
+      return { success: false, error: "Pase de invitado inválido" };
+    }
+
+    const store = getServerFoundersMap();
+    let founder = store.get(check.founderNumber);
+    if (!founder) {
+      const guestPasses = [1, 2, 3, 4, 5].map((idx) => ({
+        passIndex: idx,
+        code: generateGuestPass(check.founderNumber!, idx),
+        redeemedAt: null as number | null,
+      }));
+      founder = {
+        number: check.founderNumber,
+        code: generateFounderCode(check.founderNumber),
+        name: `Fundador #${check.founderNumber}`,
+        issuedAt: Date.now(),
+        redeemedAt: Date.now(),
+        guestPasses,
+      };
+      store.set(check.founderNumber, founder);
+    }
+
+    const pass = founder.guestPasses.find((p) => p.passIndex === check.passIndex);
+    if (pass) {
+      if (pass.redeemedAt !== null) {
+        return { success: false, error: "Este pase de invitado ya fue utilizado" };
+      }
+      pass.redeemedAt = Date.now();
+      pass.redeemedBy = data.guestName?.trim() || "Invitado";
+    }
+
+    const usedCount = founder.guestPasses.filter((p) => p.redeemedAt !== null).length;
+
+    await sendDiscordWebhookEmbed({
+      webhookUrl: "",
+      title: "🎟️ ¡PASE DE EMBAJADOR CANJEADO EN VIVO!",
+      description: `Un jugador acaba de canjear un **Pase Fiesta 24h** regalado por un Miembro Fundador.`,
+      color: 0x10b981,
+      fields: [
+        {
+          name: "👑 Fundador Anfitrión",
+          value: `${founder.name} (#${founder.number})`,
+          inline: true,
+        },
+        { name: "🎟️ Pase Canjeado", value: `Pase #${check.passIndex} de 5`, inline: true },
+        {
+          name: "📊 Balance del Fundador",
+          value: `${usedCount} de 5 usados (${5 - usedCount} restantes)`,
+          inline: true,
+        },
+      ],
+    });
+
+    return { success: true, durationHours: 24, founderName: founder.name };
   });

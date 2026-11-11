@@ -189,9 +189,77 @@ export const STORAGE_KEYS = {
   USED_COUPONS: "impostor-used-coupons",
   COUPON_NAMES: "impostor-coupon-names",
   DISCORD_WEBHOOK: "impostor-discord-webhook",
+  FOUNDER_NUMBER: "impostor-founder-number",
+  FOUNDER_CODE: "impostor-founder-code",
 } as const;
 
-export type AccessCodeRole = "ceo" | "vip_unlimited" | "vip_single" | "already_used" | null;
+export type AccessCodeRole =
+  "ceo" | "vip_unlimited" | "vip_single" | "founder" | "guest_pass" | "already_used" | null;
+
+const FOUNDER_SECRET = "imposter-founder-v1-secret-8a2b4c6e:";
+
+/**
+ * Genera un código criptográfico único de Miembro Fundador Vitalicio.
+ * Formato: FNDR-XXXX-YYYY (Ej: FNDR-0001-A7B2)
+ */
+export function generateFounderCode(number: number): string {
+  const numStr = String(number).padStart(4, "0");
+  const prefix = `FNDR-${numStr}`;
+  const sig = sha256(FOUNDER_SECRET + prefix)
+    .slice(0, 4)
+    .toUpperCase();
+  return `${prefix}-${sig}`;
+}
+
+/**
+ * Valida la autenticidad matemática de un código de Fundador Vitalicio.
+ */
+export function isValidFounderCode(rawInput: string): { valid: boolean; number: number | null } {
+  const normalized = rawInput.trim().toUpperCase();
+  const match = normalized.match(/^FNDR-(\d{4})-([A-F0-9]{4})$/);
+  if (!match) return { valid: false, number: null };
+  const numStr = match[1]!;
+  const sig = match[2]!;
+  const expectedSig = sha256(FOUNDER_SECRET + `FNDR-${numStr}`)
+    .slice(0, 4)
+    .toUpperCase();
+  if (sig !== expectedSig) return { valid: false, number: null };
+  return { valid: true, number: parseInt(numStr, 10) };
+}
+
+/**
+ * Genera uno de los 5 pases de invitado de un fundador (P1 a P5).
+ * Formato: FNDRXXXX-P1-YYY (Ej: FNDR0001-P1-9B4)
+ */
+export function generateGuestPass(founderNumber: number, passIndex: number): string {
+  const numStr = String(founderNumber).padStart(4, "0");
+  const base = `FNDR${numStr}-P${passIndex}`;
+  const sig = sha256(FOUNDER_SECRET + base)
+    .slice(0, 3)
+    .toUpperCase();
+  return `${base}-${sig}`;
+}
+
+/**
+ * Valida la autenticidad matemática de un pase de invitado (24h).
+ */
+export function isValidGuestPass(rawInput: string): {
+  valid: boolean;
+  founderNumber: number | null;
+  passIndex: number | null;
+} {
+  const normalized = rawInput.trim().toUpperCase();
+  const match = normalized.match(/^FNDR(\d{4})-P([1-5])-([A-F0-9]{3})$/);
+  if (!match) return { valid: false, founderNumber: null, passIndex: null };
+  const numStr = match[1]!;
+  const passIdx = parseInt(match[2]!, 10);
+  const sig = match[3]!;
+  const expectedSig = sha256(FOUNDER_SECRET + `FNDR${numStr}-P${passIdx}`)
+    .slice(0, 3)
+    .toUpperCase();
+  if (sig !== expectedSig) return { valid: false, founderNumber: null, passIndex: null };
+  return { valid: true, founderNumber: parseInt(numStr, 10), passIndex: passIdx };
+}
 
 /**
  * Crea un sello de expiración firmado con SHA-256 vinculado al token del cupón.
@@ -220,21 +288,29 @@ export function parseSignedExpiry(token: string | null, rawExpiry: string | null
   return expiresAt;
 }
 
+export interface AccessCodeVerificationResult {
+  role: AccessCodeRole;
+  token: string | null;
+  couponIdHash: string | null;
+  meta?: {
+    founderNumber?: number;
+    passIndex?: number;
+  };
+}
+
 /**
  * Verifica un código ingresado por el usuario sin exponer las claves en texto plano.
  * - "ceo": Acceso maestro ilimitado.
  * - "vip_unlimited": Cupón VIP-FIESTA-99 de uso libre ilimitado.
  * - "vip_single": Cupón de tester de 1 solo uso y 48 horas de duración.
- * - "already_used": El cupón de 1 solo uso ya fue consumido anteriormente.
+ * - "founder": Pase Fundador Vitalicio (FNDR-XXXX-YYYY).
+ * - "guest_pass": Pase de Embajador 24h de un fundador (FNDRXXXX-PX-YYY).
+ * - "already_used": El cupón o pase ya fue consumido anteriormente.
  */
 export function verifyAccessCode(
   rawInput: string,
   usedCouponHashes: string[] = [],
-): {
-  role: AccessCodeRole;
-  token: string | null;
-  couponIdHash: string | null;
-} {
+): AccessCodeVerificationResult {
   const normalized = rawInput.trim().toUpperCase();
   if (!normalized || normalized.length > 40) {
     return { role: null, token: null, couponIdHash: null };
@@ -254,6 +330,47 @@ export function verifyAccessCode(
     }
     return { role: "vip_single", token, couponIdHash: verifyHash };
   }
+
+  // Comprobar si es un Código de Miembro Fundador Vitalicio (FNDR-XXXX-YYYY)
+  const founderCheck = isValidFounderCode(normalized);
+  if (founderCheck.valid && founderCheck.number !== null) {
+    if (usedCouponHashes.includes(verifyHash)) {
+      return {
+        role: "already_used",
+        token: null,
+        couponIdHash: verifyHash,
+        meta: { founderNumber: founderCheck.number },
+      };
+    }
+    const approvedToken = createPurchaseApprovedToken();
+    return {
+      role: "founder",
+      token: approvedToken,
+      couponIdHash: verifyHash,
+      meta: { founderNumber: founderCheck.number },
+    };
+  }
+
+  // Comprobar si es un Pase de Invitado 24h de Fundador (FNDRXXXX-PX-YYY)
+  const guestCheck = isValidGuestPass(normalized);
+  if (guestCheck.valid && guestCheck.founderNumber !== null && guestCheck.passIndex !== null) {
+    if (usedCouponHashes.includes(verifyHash)) {
+      return {
+        role: "already_used",
+        token: null,
+        couponIdHash: verifyHash,
+        meta: { founderNumber: guestCheck.founderNumber, passIndex: guestCheck.passIndex },
+      };
+    }
+    const approvedToken = createPurchaseApprovedToken();
+    return {
+      role: "guest_pass",
+      token: approvedToken,
+      couponIdHash: verifyHash,
+      meta: { founderNumber: guestCheck.founderNumber, passIndex: guestCheck.passIndex },
+    };
+  }
+
   return { role: null, token: null, couponIdHash: null };
 }
 
