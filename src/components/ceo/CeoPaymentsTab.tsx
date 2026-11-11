@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { RefreshCw, CheckCircle2, DollarSign } from "lucide-react";
+import { useState, useEffect } from "react";
+import { RefreshCw, CheckCircle2, DollarSign, Bell } from "lucide-react";
 import { reviewPaymentServerFn, savePaymentConfigServerFn } from "@/lib/coupon-server";
 import { PaymentConfig, PendingPayment } from "@/lib/payment-config";
+import { STORAGE_KEYS } from "@/lib/security";
 
 export interface CeoPaymentsTabProps {
   token: string | null;
@@ -23,6 +24,13 @@ export function CeoPaymentsTab({
   setPaymentConfig,
 }: CeoPaymentsTabProps) {
   const [savePaymentSuccess, setSavePaymentSuccess] = useState(false);
+  const [hasDiscordWebhook, setHasDiscordWebhook] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem(STORAGE_KEYS.DISCORD_WEBHOOK);
+    setHasDiscordWebhook(Boolean(stored && stored.startsWith("https://discord.com/api/webhooks/")));
+  }, []);
 
   const handleReview = async (paymentId: string, action: "approve" | "reject") => {
     if (!token) return;
@@ -39,12 +47,26 @@ export function CeoPaymentsTab({
   const handleSaveConfig = async () => {
     if (!token) return;
     try {
+      let webhookUrl: string | undefined;
+      if (typeof window !== "undefined") {
+        const storedHook = localStorage.getItem(STORAGE_KEYS.DISCORD_WEBHOOK);
+        if (storedHook && storedHook.startsWith("https://discord.com/api/webhooks/")) {
+          webhookUrl = storedHook;
+        }
+        localStorage.setItem(STORAGE_KEYS.PAYMENT_CONFIG, JSON.stringify(paymentConfig));
+      }
+
       const res = await savePaymentConfigServerFn({
-        data: { ceoToken: token, config: paymentConfig },
+        data: {
+          ceoToken: token,
+          config: paymentConfig,
+          ...(webhookUrl ? { discordWebhookUrl: webhookUrl } : {}),
+        },
       });
+
       if (res.success) {
         setSavePaymentSuccess(true);
-        setTimeout(() => setSavePaymentSuccess(false), 2500);
+        setTimeout(() => setSavePaymentSuccess(false), 3500);
       }
     } catch {
       /* ignore */
@@ -390,18 +412,34 @@ export function CeoPaymentsTab({
         </div>
       </div>
 
-      <div className="flex items-center gap-3 pt-2">
-        <button
-          onClick={handleSaveConfig}
-          className="rounded-xl bg-primary hover:brightness-110 px-5 py-2.5 text-xs font-semibold text-primary-foreground transition cursor-pointer shadow-md"
-        >
-          {savePaymentSuccess ? "¡Guardado con éxito!" : "Guardar Datos de Cobro"}
-        </button>
-        {savePaymentSuccess && (
-          <span className="text-xs text-emerald-400 font-medium">
-            Actualizado en el Paywall del juego
-          </span>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveConfig}
+            className="rounded-xl bg-primary hover:brightness-110 px-5 py-2.5 text-xs font-semibold text-primary-foreground transition cursor-pointer shadow-md"
+          >
+            {savePaymentSuccess ? "¡Guardado con éxito!" : "Guardar Datos de Cobro"}
+          </button>
+          {savePaymentSuccess && (
+            <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 animate-in fade-in">
+              <CheckCircle2 size={14} />
+              {hasDiscordWebhook
+                ? "Guardado en Paywall y alertado a Discord"
+                : "Guardado en Paywall del juego"}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Bell size={12} className={hasDiscordWebhook ? "text-emerald-400" : "text-white/40"} />
+          {hasDiscordWebhook ? (
+            <span className="text-emerald-400/90 font-medium">Discord Webhook Conectado</span>
+          ) : (
+            <span className="text-muted-foreground">
+              Sin webhook vinculado (configúralo en la pestaña Métricas)
+            </span>
+          )}
+        </div>
       </div>
     </section>
   );

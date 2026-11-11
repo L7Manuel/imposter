@@ -15,7 +15,12 @@ import {
   getCouponServerStatusServerFn,
 } from "@/lib/coupon-server";
 import { getGlobalMetricsServerFn, GlobalMetrics } from "@/lib/telemetry-server";
-import { PaymentConfig, DEFAULT_PAYMENT_CONFIG, PendingPayment } from "@/lib/payment-config";
+import {
+  PaymentConfig,
+  DEFAULT_PAYMENT_CONFIG,
+  PendingPayment,
+  sanitizePaymentConfig,
+} from "@/lib/payment-config";
 import { CeoFoundersTab, CeoPaymentsTab, CeoTestersTab, CeoMetricsTab } from "@/components/ceo";
 
 export const Route = createFileRoute("/ceo")({
@@ -71,6 +76,10 @@ export function CeoPage() {
     }
 
     try {
+      const storedPayConfig = localStorage.getItem(STORAGE_KEYS.PAYMENT_CONFIG);
+      if (storedPayConfig) {
+        setPaymentConfig(sanitizePaymentConfig(JSON.parse(storedPayConfig)));
+      }
       const storedNames = localStorage.getItem(STORAGE_KEYS.COUPON_NAMES);
       if (storedNames) setCouponNames(JSON.parse(storedNames));
       const storedUsed = localStorage.getItem(STORAGE_KEYS.USED_COUPONS);
@@ -100,7 +109,7 @@ export function CeoPage() {
   );
 
   const fetchPayments = useCallback(
-    async (curToken = token) => {
+    async (curToken = token, fetchConfig = true) => {
       if (!curToken) return;
       setIsLoadingPayments(true);
       try {
@@ -108,9 +117,24 @@ export function CeoPage() {
         if (res.success && res.payments) {
           setPayments(res.payments);
         }
-        const cfgRes = await getPaymentConfigServerFn();
-        if (cfgRes.success && cfgRes.config) {
-          setPaymentConfig(cfgRes.config);
+        if (fetchConfig) {
+          let fallback: PaymentConfig | undefined;
+          if (typeof window !== "undefined") {
+            const savedPay = localStorage.getItem(STORAGE_KEYS.PAYMENT_CONFIG);
+            if (savedPay) {
+              try {
+                fallback = sanitizePaymentConfig(JSON.parse(savedPay));
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+          const cfgRes = await getPaymentConfigServerFn({
+            data: { defaultFallback: fallback },
+          });
+          if (cfgRes.success && cfgRes.config) {
+            setPaymentConfig(cfgRes.config);
+          }
         }
       } catch {
         /* ignore */
@@ -177,7 +201,8 @@ export function CeoPage() {
     }
     if (activeTab === "cobros") {
       const timer = setInterval(() => {
-        fetchPayments(token);
+        // En el polling periódico, únicamente refrescamos las transferencias pendientes (payments), sin sobrescribir el formulario de configuración
+        fetchPayments(token, false);
       }, 15000);
       return () => clearInterval(timer);
     }

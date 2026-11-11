@@ -191,6 +191,7 @@ export const STORAGE_KEYS = {
   DISCORD_WEBHOOK: "impostor-discord-webhook",
   FOUNDER_NUMBER: "impostor-founder-number",
   FOUNDER_CODE: "impostor-founder-code",
+  PAYMENT_CONFIG: "impostor-payment-config",
 } as const;
 
 export type AccessCodeRole =

@@ -76,7 +76,12 @@ export async function sendDiscordWebhookEmbed({
   color?: number;
   fields?: Array<{ name: string; value: string; inline?: boolean }>;
 }): Promise<boolean> {
-  const url = webhookUrl || globalThis.__imposterDiscordWebhookUrl;
+  const url =
+    webhookUrl ||
+    globalThis.__imposterDiscordWebhookUrl ||
+    (typeof process !== "undefined" && process.env?.DISCORD_METRICS_WEBHOOK_URL) ||
+    (typeof process !== "undefined" && process.env?.DISCORD_WEBHOOK_URL) ||
+    "";
   if (!url || !url.startsWith("https://discord.com/api/webhooks/")) {
     return false;
   }
@@ -227,7 +232,10 @@ export const getPaymentConfigServerFn = createServerFn({ method: "POST" })
   });
 
 export const savePaymentConfigServerFn = createServerFn({ method: "POST" })
-  .validator((input: { ceoToken: string; config: PaymentConfig }) => input)
+  .validator(
+    (input: { ceoToken: string; config: PaymentConfig; discordWebhookUrl?: string | undefined }) =>
+      input,
+  )
   .handler(async ({ data }) => {
     if (!isValidStoredToken(data.ceoToken, "ceo")) {
       return { success: false, error: "No autorizado. Clave CEO no válida." };
@@ -236,9 +244,13 @@ export const savePaymentConfigServerFn = createServerFn({ method: "POST" })
     const sanitized = sanitizePaymentConfig(data.config);
     globalThis.__imposterPaymentConfig = sanitized;
 
+    if (data.discordWebhookUrl) {
+      globalThis.__imposterDiscordWebhookUrl = data.discordWebhookUrl;
+    }
+
     // Notificar a Discord si hay webhook
     await sendDiscordWebhookEmbed({
-      webhookUrl: "",
+      webhookUrl: data.discordWebhookUrl || globalThis.__imposterDiscordWebhookUrl || "",
       title: "💳 Configuración de Pagos Actualizada",
       description: "El CEO acaba de actualizar los datos de cobro de Imposter.",
       fields: [
