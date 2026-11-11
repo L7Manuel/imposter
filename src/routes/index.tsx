@@ -113,19 +113,39 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Imposter — Descubre al traidor" },
+      { title: "El Impostor — Juego de Fiesta y Engaño Social para Jugar con Amigos" },
       {
         name: "description",
         content:
-          "Juego de fiesta: pasa el teléfono, recibe tu palabra y descubre quién es el impostor.",
+          "El juego definitivo para tus reuniones y fiestas. Pasa el teléfono, descubre la palabra secreta y desenmascara al impostor. Gratis, online y sin descargas obligatorias.",
       },
-      { property: "og:title", content: "Imposter — Descubre al traidor" },
+      {
+        name: "keywords",
+        content:
+          "juego del impostor, juego de fiesta, el impostor online, pass and play, juegos para beber, quien es el impostor, undercover en español, spyfall español, imposter party",
+      },
+      {
+        property: "og:title",
+        content: "El Impostor — Juego de Fiesta y Engaño Social para Jugar con Amigos",
+      },
       {
         property: "og:description",
-        content: "Pasa el teléfono, recibe tu palabra y descubre al impostor del grupo.",
+        content:
+          "Pasa el teléfono, descubre tu palabra secreta y desenmascara al impostor del grupo. ¡Juega gratis sin descargar nada!",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
+      { property: "og:image", content: "https://imposter.manu-07games.workers.dev/icon-512.png" },
+      { property: "og:url", content: "https://imposter.manu-07games.workers.dev" },
+      { name: "twitter:card", content: "summary_large_image" },
+      {
+        name: "twitter:title",
+        content: "El Impostor — Juego de Fiesta y Engaño Social",
+      },
+      {
+        name: "twitter:description",
+        content: "Pasa el teléfono, mantén el sensor táctil y descubre al mentiroso.",
+      },
+      { name: "twitter:image", content: "https://imposter.manu-07games.workers.dev/icon-512.png" },
     ],
   }),
   component: Game,

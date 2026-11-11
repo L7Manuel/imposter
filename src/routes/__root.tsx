@@ -76,16 +76,47 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "Imposter" },
-      { name: "description", content: "Imposter — Juego de fiesta y deducción" },
+      { title: "El Impostor — Juego de Fiesta y Engaño Social para Jugar con Amigos" },
+      {
+        name: "description",
+        content:
+          "El juego de fiesta definitivo para reuniones presenciales. Pasa el teléfono, descubre tu palabra secreta y desenmascara al impostor. Gratis, online y sin descargas obligatorias.",
+      },
+      {
+        name: "keywords",
+        content:
+          "juego del impostor, juego de fiesta, el impostor online, pass and play, juegos para beber, quien es el impostor, undercover en español, spyfall español, imposter party",
+      },
+      { name: "author", content: "Tirlem Games" },
       { name: "theme-color", content: "#0f1523" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-      { name: "apple-mobile-web-app-title", content: "Imposter" },
+      { name: "apple-mobile-web-app-title", content: "El Impostor" },
       { name: "mobile-web-app-capable", content: "yes" },
+      { property: "og:site_name", content: "El Impostor" },
       { property: "og:type", content: "website" },
+      {
+        property: "og:title",
+        content: "El Impostor — Juego de Fiesta y Engaño Social para Jugar con Amigos",
+      },
+      {
+        property: "og:description",
+        content:
+          "Pasa el teléfono, mantén el sensor táctil y desenmascara al mentiroso del grupo. Juega gratis al instante.",
+      },
+      { property: "og:image", content: "https://imposter.manu-07games.workers.dev/icon-512.png" },
+      { property: "og:url", content: "https://imposter.manu-07games.workers.dev" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      {
+        name: "twitter:title",
+        content: "El Impostor — Juego de Fiesta y Engaño Social",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "Juego presencial de deducción para grupos y reuniones con un solo móvil. ¿Quién está mintiendo?",
+      },
+      { name: "twitter:image", content: "https://imposter.manu-07games.workers.dev/icon-512.png" },
     ],
     links: [
       {

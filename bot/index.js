@@ -95,6 +95,10 @@ TU IDENTIDAD Y PERSONALIDAD:
    - Con usuarios en #soporte-o-dudas: Educado, paciente, claro, conciso y resolutivo. Explica reglas o cómo pagar paso a paso sin rodeos.
    - Con miembros en #fundador-vip: Cercano y cordial, reconociendo el apoyo temprano al proyecto.
    - En el canal privado con Tirlem (#despacho-ceo o similar): Modo socio/copiloto reflexivo. Analítico, evaluando pros, contras, riesgos y prioridades con franqueza.
+   - En el canal #estrategia-marketing o al hablar con Tirlem y su novia (la Co-CEO y Directora de Marketing de Imposter):
+     * Reconoces a ambos como el equipo directivo y fundadores de Imposter.
+     * Con ella y con Tirlem actúas como su Copiloto de Marketing: especialista en ganchos (hooks) de 3 segundos para TikTok y Reels, ideas de desafíos de fiesta ("Reto Impostor"), copys persuasivos para WhatsApp e Instagram, campañas para conseguir los primeros 100 Miembros Fundadores ($9.80) y la meta de negocio de financiar el dominio propio "imposterparty.com" con las primeras ventas.
+     * Propones experimentos virales prácticos que no requieran presupuesto publicitario, aprovechando las reuniones presenciales.
    - Siempre respondes en español. Emojis moderados, solo cuando aporten claridad o tono amigable, sin saturar.
 `;
 
@@ -521,9 +525,10 @@ client.once("clientReady", async () => {
     await discoverWorkingGeminiModel();
   }
 
-  // Verificar o auto-crear canal de telemetría #metricas-imposter
+  // Verificar o auto-crear canal de telemetría #metricas-imposter, rol @👑 Co-CEO y canal #estrategia-marketing
   try {
     for (const guild of client.guilds.cache.values()) {
+      // 1. Canal #metricas-imposter
       let metricChannel = guild.channels.cache.find(
         (c) => c.name === "metricas-imposter" || c.name === "métricas-imposter",
       );
@@ -541,14 +546,142 @@ client.once("clientReady", async () => {
       if (metricChannel) {
         logDebug(`📊 Canal de métricas listo: #${metricChannel.name} en ${guild.name}`);
       }
+
+      // 2. Rol @👑 Co-CEO
+      let coCeoRole = guild.roles.cache.find(
+        (r) =>
+          r.name === "👑 Co-CEO" || r.name === "Co-CEO" || r.name.toLowerCase().includes("co-ceo"),
+      );
+      if (!coCeoRole && guild.members.me?.permissions?.has(PermissionFlagsBits.ManageRoles)) {
+        try {
+          coCeoRole = await guild.roles.create({
+            name: "👑 Co-CEO",
+            color: 0xf59e0b,
+            hoist: true,
+            mentionable: true,
+            reason: "Rol ejecutivo para la Co-CEO y Directora de Marketing de Imposter",
+          });
+          logDebug(`✨ Rol @👑 Co-CEO auto-creado en ${guild.name}`);
+        } catch (e) {
+          logDebug("No se pudo crear rol @👑 Co-CEO:", e.message);
+        }
+      }
+
+      // 3. Asignar rol Co-CEO a Tirlem (dueño del servidor) si no lo tiene
+      if (coCeoRole && guild.ownerId) {
+        try {
+          const owner = await guild.members.fetch(guild.ownerId).catch(() => null);
+          if (owner && !owner.roles.cache.has(coCeoRole.id)) {
+            await owner.roles.add(coCeoRole);
+            logDebug(`👑 Rol @👑 Co-CEO asignado al fundador (Tirlem) en ${guild.name}`);
+          }
+        } catch (e) {
+          /* ignore */
+        }
+      }
+
+      // 4. Canal #estrategia-marketing
+      let mktChannel = guild.channels.cache.find(
+        (c) =>
+          c.isTextBased() &&
+          (c.name === "estrategia-marketing" ||
+            c.name === "estrategias-marketing" ||
+            c.name.includes("marketing")),
+      );
+      if (!mktChannel && guild.members.me?.permissions?.has(PermissionFlagsBits.ManageChannels)) {
+        try {
+          mktChannel = await guild.channels.create({
+            name: "estrategia-marketing",
+            type: ChannelType.GuildText,
+            topic:
+              "Laboratorio de Marketing, Contenido Viral y Crecimiento de Imposter (imposterparty.com) 🚀",
+          });
+          logDebug(`✨ Canal #estrategia-marketing auto-creado en ${guild.name}`);
+
+          const welcomeEmbed = new EmbedBuilder()
+            .setTitle("🚀 Laboratorio de Marketing & Crecimiento — Imposter")
+            .setDescription(
+              "¡Bienvenidos al centro de mando de Marketing y Expansión de **Imposter**! 🎉\n\nAquí coordinamos junto a Tirlem y la Co-CEO la estrategia de contenido para TikTok/Reels, ganchos virales para fiestas y la meta de captación de Miembros Fundadores para financiar nuestro dominio **imposterparty.com**.",
+            )
+            .setColor(0xf59e0b)
+            .addFields([
+              {
+                name: "👑 Asignar rol a la Co-CEO",
+                value:
+                  "Tirlem puede escribir `!co-ceo @novia` en este canal y Atlas le asignará el rol ejecutivo al instante con bienvenida oficial.",
+                inline: false,
+              },
+              {
+                name: "🎯 ¿Cómo interactuar con Atlas aquí?",
+                value:
+                  "Escribe directamente en este canal sin necesidad de etiquetarme. Pídeme ideas de videos, guiones de 30 segundos, ganchos de comedia o copys para WhatsApp.",
+                inline: false,
+              },
+            ])
+            .setTimestamp();
+
+          await mktChannel.send({ embeds: [welcomeEmbed] });
+        } catch (e) {
+          logDebug("No se pudo crear canal #estrategia-marketing:", e.message);
+        }
+      }
     }
   } catch (err) {
-    logDebug("⚠️ No se pudo verificar o auto-crear #metricas-imposter al inicio:", err.message);
+    logDebug("⚠️ Error al inicializar canales y roles al inicio:", err.message);
   }
 });
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
+
+  // 👑 Comando rápido para nombrar Co-CEO: !co-ceo @mención o !asignar-co-ceo @mención
+  if (message.content.startsWith("!co-ceo") || message.content.startsWith("!asignar-co-ceo")) {
+    const targetMember = message.mentions.members?.first();
+    if (!targetMember) {
+      await message.reply(
+        "⚠️ Debes mencionar a tu novia o compañera que deseas nombrar Co-CEO (ejemplo: `!co-ceo @usuario`).",
+      );
+      return;
+    }
+    const guild = message.guild;
+    if (!guild) return;
+
+    let coCeoRole = guild.roles.cache.find(
+      (r) =>
+        r.name === "👑 Co-CEO" || r.name === "Co-CEO" || r.name.toLowerCase().includes("co-ceo"),
+    );
+    if (!coCeoRole && guild.members.me?.permissions?.has(PermissionFlagsBits.ManageRoles)) {
+      try {
+        coCeoRole = await guild.roles.create({
+          name: "👑 Co-CEO",
+          color: 0xf59e0b,
+          hoist: true,
+          mentionable: true,
+        });
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
+    if (coCeoRole) {
+      try {
+        await targetMember.roles.add(coCeoRole);
+        const embed = new EmbedBuilder()
+          .setTitle("👑 ¡Nombramiento Oficial: Co-CEO de Imposter!")
+          .setDescription(
+            `¡Demos la bienvenida formal a <@${targetMember.id}> al equipo ejecutivo de **Imposter**! 🎉\n\nDesde ahora cuenta con el rol oficial **👑 Co-CEO y Directora de Marketing**. Atlas está a su disposición 24/7 en este canal para armar guiones para TikTok, estrategias virales para fiestas y la venta de pases fundador para financiar **imposterparty.com**.`,
+          )
+          .setColor(0xf59e0b)
+          .setTimestamp();
+        await message.channel.send({ embeds: [embed] });
+      } catch (err) {
+        await message.reply(
+          `⚠️ No pude asignar el rol automáticamente (${err.message}). Por favor verifica que el rol del bot esté por encima de los demás roles en la configuración del servidor.`,
+        );
+      }
+      return;
+    }
+  }
 
   const isDM = !message.guild;
   const isMentioned = client.user && message.mentions.has(client.user.id);
@@ -557,6 +690,10 @@ client.on("messageCreate", async (message) => {
   // Canales especiales
   const isSoporteChannel = channelName === "soporte-o-dudas";
   const isFundadorChannel = channelName === "fundador-vip";
+  const isMarketingChannel =
+    channelName === "estrategia-marketing" ||
+    channelName === "estrategias-marketing" ||
+    channelName.includes("marketing");
   const isCEOChannel =
     channelName.includes("ceo") ||
     channelName.includes("despacho") ||
@@ -570,10 +707,14 @@ client.on("messageCreate", async (message) => {
   // El bot responde si:
   // 1. Es mensaje directo (DM)
   // 2. Es mencionado en cualquier canal
-  // 3. Es el canal privado del CEO (responde a TODO lo que escriba el CEO sin necesidad de etiquetar)
+  // 3. Es el canal privado del CEO o el canal de Marketing (responde sin necesidad de etiquetar)
   // 4. Es el canal #soporte-o-dudas y el mensaje tiene más de 4 caracteres
   const shouldRespond =
-    isDM || isMentioned || isCEOChannel || (isSoporteChannel && message.content.length > 4);
+    isDM ||
+    isMentioned ||
+    isCEOChannel ||
+    isMarketingChannel ||
+    (isSoporteChannel && message.content.length > 4);
 
   if (!shouldRespond) return;
 
@@ -601,9 +742,26 @@ client.on("messageCreate", async (message) => {
 
   const userTag = message.author.tag || message.author.username;
 
-  // Si estamos en el despacho del CEO, inyectamos contexto ejecutivo exclusivo y métricas en vivo
+  // Si estamos en el despacho del CEO o en marketing, inyectamos contexto ejecutivo exclusivo y métricas en vivo
   let promptWithContext = `[Mensaje de ${userTag}]: ${cleanContent}`;
-  if (isCEOChannel) {
+  if (isMarketingChannel) {
+    promptWithContext = `[CANAL EJECUTIVO — ESTRATEGIA Y MARKETING DE IMPOSTER]:
+Estás en la sala de juntas de marketing con el equipo fundador de Imposter (Tirlem y la Co-CEO / Directora de Marketing).
+El usuario que te escribe es: ${userTag}.
+Tu rol aquí es ser su Chief Marketing Copilot (Director Creativo y de Crecimiento):
+- Objetivo #1: Diseñar ganchos (hooks) de 3 segundos para TikTok y Reels de partidas de Imposter en reuniones presenciales ("Le tocó el impostor a mi novia y se puso nerviosa 😂", "El juego definitivo para romper el hielo en fiestas").
+- Objetivo #2: Estrategia de guerrilla para vender los primeros Pases Fundador Vitalicios ($9.80) y Pases Fiesta ($0.99) para financiar el dominio propio "imposterparty.com".
+- Objetivo #3: Uso inteligente de los 10 cupones de prueba de 48h para testers, amigos influyentes y micro-creadores.
+- Sé estructurado, dinámico, creativo y enfocado en viralidad orgánica sin gastar dinero en anuncios.
+
+[DATOS REALES DEL RADAR DE MÉTRICAS]:
+- Partidas iniciadas: ${botLiveMetrics.roundsStarted}
+- Vistas a Checkout/Pases: ${botLiveMetrics.paywallViews}
+- PWA Instaladas: ${botLiveMetrics.pwaInstalls}
+- Dispositivos: Android: ${botLiveMetrics.deviceCounts.android}, iOS: ${botLiveMetrics.deviceCounts.ios}, PC: ${botLiveMetrics.deviceCounts.desktop}
+
+[Mensaje de ${userTag}]: ${cleanContent}`;
+  } else if (isCEOChannel) {
     promptWithContext = `[CANAL PRIVADO — DESPACHO CON TIRLEM]:
 Estás hablando a solas con Tirlem (creador de Imposter).
 Mantén tu personalidad auténtica: sereno, analítico, directo, con los pies en la tierra y CERO adulación.
