@@ -115,6 +115,11 @@ const client = new Client({
 // Historial breve en memoria por canal/usuario para contexto (últimos 8 mensajes)
 const conversationMemory = new Map();
 
+// 🔍 Diagnósticos y estado en vivo para Render / Health-Check
+let lastMessageReceived = null;
+let lastDiscordError = null;
+const botInitTime = new Date().toISOString();
+
 // 🛰️ Radar de Métricas en Vivo de Atlas (Eventos en Tiempo Real)
 const botLiveMetrics = {
   roundsStarted: 0,
@@ -506,6 +511,24 @@ async function askAI(promptText, history = []) {
 // ==========================================
 // EVENTOS DE DISCORD
 // ==========================================
+client.on("error", (err) => {
+  lastDiscordError = {
+    message: err.message,
+    type: "CLIENT_ERROR",
+    time: new Date().toISOString(),
+  };
+  logDebug("❌ Error de conexión en cliente Discord:", err.message);
+});
+
+client.on("shardError", (err) => {
+  lastDiscordError = {
+    message: err.message,
+    type: "SHARD_ERROR",
+    time: new Date().toISOString(),
+  };
+  logDebug("❌ Error en Shard de Discord:", err.message);
+});
+
 client.once("clientReady", async () => {
   console.log(`\n==================================================`);
   console.log(`🤖 ¡Atlas está en línea en Discord!`);
@@ -634,118 +657,170 @@ client.once("clientReady", async () => {
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
-  // 👑 Comando rápido para nombrar Co-CEO: !co-ceo @mención o !asignar-co-ceo @mención
-  if (message.content.startsWith("!co-ceo") || message.content.startsWith("!asignar-co-ceo")) {
-    const targetMember = message.mentions.members?.first();
-    if (!targetMember) {
-      await message.reply(
-        "⚠️ Debes mencionar a tu novia o compañera que deseas nombrar Co-CEO (ejemplo: `!co-ceo @usuario`).",
-      );
-      return;
-    }
-    const guild = message.guild;
-    if (!guild) return;
-
-    let coCeoRole = guild.roles.cache.find(
-      (r) =>
-        r.name === "👑 Co-CEO" || r.name === "Co-CEO" || r.name.toLowerCase().includes("co-ceo"),
-    );
-    if (!coCeoRole && guild.members.me?.permissions?.has(PermissionFlagsBits.ManageRoles)) {
-      try {
-        coCeoRole = await guild.roles.create({
-          name: "👑 Co-CEO",
-          color: 0xf59e0b,
-          hoist: true,
-          mentionable: true,
-        });
-      } catch (e) {
-        /* ignore */
-      }
-    }
-
-    if (coCeoRole) {
-      try {
-        await targetMember.roles.add(coCeoRole);
-        const embed = new EmbedBuilder()
-          .setTitle("👑 ¡Nombramiento Oficial: Co-CEO de Imposter!")
-          .setDescription(
-            `¡Demos la bienvenida formal a <@${targetMember.id}> al equipo ejecutivo de **Imposter**! 🎉\n\nDesde ahora cuenta con el rol oficial **👑 Co-CEO y Directora de Marketing**. Atlas está a su disposición 24/7 en este canal para armar guiones para TikTok, estrategias virales para fiestas y la venta de pases fundador para financiar **imposterparty.com**.`,
-          )
-          .setColor(0xf59e0b)
-          .setTimestamp();
-        await message.channel.send({ embeds: [embed] });
-      } catch (err) {
-        await message.reply(
-          `⚠️ No pude asignar el rol automáticamente (${err.message}). Por favor verifica que el rol del bot esté por encima de los demás roles en la configuración del servidor.`,
-        );
-      }
-      return;
-    }
-  }
-
-  const isDM = !message.guild;
-  const isMentioned = client.user && message.mentions.has(client.user.id);
-  const channelName = (message.channel.name || "").toLowerCase();
-
-  // Canales especiales
-  const isSoporteChannel = channelName === "soporte-o-dudas";
-  const isFundadorChannel = channelName === "fundador-vip";
-  const isMarketingChannel =
-    channelName === "estrategia-marketing" ||
-    channelName === "estrategias-marketing" ||
-    channelName.includes("marketing");
-  const isCEOChannel =
-    channelName.includes("ceo") ||
-    channelName.includes("despacho") ||
-    channelName.includes("oficina") ||
-    channelName.includes("estrategia") ||
-    channelName.includes("junta") ||
-    channelName.includes("negocio") ||
-    channelName.includes("privado") ||
-    channelName.includes("tirlem");
-
-  // El bot responde si:
-  // 1. Es mensaje directo (DM)
-  // 2. Es mencionado en cualquier canal
-  // 3. Es el canal privado del CEO o el canal de Marketing (responde sin necesidad de etiquetar)
-  // 4. Es el canal #soporte-o-dudas y el mensaje tiene más de 4 caracteres
-  const shouldRespond =
-    isDM ||
-    isMentioned ||
-    isCEOChannel ||
-    isMarketingChannel ||
-    (isSoporteChannel && message.content.length > 4);
-
-  if (!shouldRespond) return;
-
-  let cleanContent = message.content;
-  if (client.user) {
-    cleanContent = cleanContent.replace(new RegExp(`<@!?${client.user.id}>`, "g"), "").trim();
-  }
-
-  if (!cleanContent) {
-    const greeting = isCEOChannel
-      ? "Buenas, Tirlem. ¿Qué aspecto del proyecto o del lanzamiento revisamos hoy?"
-      : "¡Hola! Soy Atlas, asistente y copiloto de **Imposter**. ¿En qué puedo ayudarte?";
-    await message.reply(greeting);
-    return;
-  }
-
   try {
-    await message.channel.sendTyping();
-  } catch {
-    /* ignore */
-  }
+    lastMessageReceived = {
+      author: message.author.tag || message.author.username,
+      channel: message.channel.name || (message.guild ? "texto" : "DM"),
+      content: (message.content || "").slice(0, 100),
+      time: new Date().toISOString(),
+    };
 
-  const memKey = getMemoryKey(message);
-  const history = conversationMemory.get(memKey) || [];
+    // 👑 Comando rápido para nombrar Co-CEO: !co-ceo @mención o !asignar-co-ceo @mención
+    if (message.content.startsWith("!co-ceo") || message.content.startsWith("!asignar-co-ceo")) {
+      const targetMember = message.mentions.members?.first();
+      if (!targetMember) {
+        await message.reply(
+          "⚠️ Debes mencionar a tu novia o compañera que deseas nombrar Co-CEO (ejemplo: `!co-ceo @usuario`).",
+        );
+        return;
+      }
+      const guild = message.guild;
+      if (!guild) return;
 
-  const userTag = message.author.tag || message.author.username;
+      let coCeoRole = guild.roles.cache.find(
+        (r) =>
+          r.name === "👑 Co-CEO" || r.name === "Co-CEO" || r.name.toLowerCase().includes("co-ceo"),
+      );
+      if (!coCeoRole && guild.members.me?.permissions?.has(PermissionFlagsBits.ManageRoles)) {
+        try {
+          coCeoRole = await guild.roles.create({
+            name: "👑 Co-CEO",
+            color: 0xf59e0b,
+            hoist: true,
+            mentionable: true,
+          });
+        } catch (e) {
+          /* ignore */
+        }
+      }
 
-  // Si estamos en el despacho del CEO o en marketing, inyectamos contexto ejecutivo exclusivo y métricas en vivo
-  let promptWithContext = `[Mensaje de ${userTag}]: ${cleanContent}`;
-  if (isMarketingChannel) {
-    promptWithContext = `[CANAL EJECUTIVO — ESTRATEGIA Y MARKETING DE IMPOSTER]:
+      if (coCeoRole) {
+        try {
+          await targetMember.roles.add(coCeoRole);
+          const embed = new EmbedBuilder()
+            .setTitle("👑 ¡Nombramiento Oficial: Co-CEO de Imposter!")
+            .setDescription(
+              `¡Demos la bienvenida formal a <@${targetMember.id}> al equipo ejecutivo de **Imposter**! 🎉\n\nDesde ahora cuenta con el rol oficial **👑 Co-CEO y Directora de Marketing**. Atlas está a su disposición 24/7 en este canal para armar guiones para TikTok, estrategias virales para fiestas y la venta de pases fundador para financiar **imposterparty.com**.`,
+            )
+            .setColor(0xf59e0b)
+            .setTimestamp();
+          await message.channel.send({ embeds: [embed] });
+        } catch (err) {
+          await message.reply(
+            `⚠️ No pude asignar el rol automáticamente (${err.message}). Por favor verifica que el rol del bot esté por encima de los demás roles en la configuración del servidor.`,
+          );
+        }
+        return;
+      }
+    }
+
+    const isDM = !message.guild;
+    const isMentioned = client.user && message.mentions.has(client.user.id);
+    const channelName = (message.channel.name || "").toLowerCase();
+
+    // Canales especiales
+    const isSoporteChannel = channelName === "soporte-o-dudas";
+    const isFundadorChannel = channelName === "fundador-vip";
+    const isMarketingChannel =
+      channelName === "estrategia-marketing" ||
+      channelName === "estrategias-marketing" ||
+      channelName.includes("marketing");
+    const isCEOChannel =
+      channelName.includes("ceo") ||
+      channelName.includes("despacho") ||
+      channelName.includes("oficina") ||
+      channelName.includes("estrategia") ||
+      channelName.includes("junta") ||
+      channelName.includes("negocio") ||
+      channelName.includes("privado") ||
+      channelName.includes("tirlem");
+
+    // El bot responde si:
+    // 1. Es mensaje directo (DM)
+    // 2. Es mencionado en cualquier canal
+    // 3. Es el canal privado del CEO o el canal de Marketing (responde sin necesidad de etiquetar)
+    // 4. Es el canal #soporte-o-dudas y el mensaje tiene más de 4 caracteres
+    const shouldRespond =
+      isDM ||
+      isMentioned ||
+      isCEOChannel ||
+      isMarketingChannel ||
+      (isSoporteChannel && message.content.length > 4);
+
+    if (!shouldRespond) return;
+
+    let cleanContent = message.content || "";
+    if (client.user) {
+      cleanContent = cleanContent.replace(new RegExp(`<@!?${client.user.id}>`, "g"), "").trim();
+    }
+
+    if (!cleanContent) {
+      const greeting = isCEOChannel
+        ? "Buenas, Tirlem. ¿Qué aspecto del proyecto o del lanzamiento revisamos hoy?"
+        : "¡Hola! Soy Atlas, asistente y copiloto de **Imposter**. ¿En qué puedo ayudarte?";
+      await message.reply(greeting);
+      return;
+    }
+
+    // 🟢 RESPUESTA INSTANTÁNEA A CHEQUEOS DE VITALIDAD / PING / STATUS (Cero latencia, no depende de la IA externa)
+    const normalized = cleanContent
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[¿?¡!]/g, "")
+      .trim();
+
+    const isVitalityCheck =
+      cleanContent.startsWith("!ping") ||
+      cleanContent.startsWith("!status") ||
+      cleanContent.startsWith("!activo") ||
+      normalized === "atlas estas activo" ||
+      normalized === "estas activo" ||
+      normalized === "atlas estas en linea" ||
+      normalized === "estas en linea" ||
+      normalized === "atlas estas despierto" ||
+      normalized === "estas despierto" ||
+      normalized === "atlas estas ahi" ||
+      normalized === "estas ahi" ||
+      normalized === "atlas sigues ahi" ||
+      normalized === "sigues ahi" ||
+      normalized === "hola atlas";
+
+    if (isVitalityCheck) {
+      const upMinutes = Math.floor(process.uptime() / 60);
+      const pingEmbed = new EmbedBuilder()
+        .setTitle("🟢 Atlas está 100% activo y en línea")
+        .setDescription(
+          `Aquí estoy contigo en el despacho, Tirlem. Conexión estable y copiloto listo para trabajar.\n\n` +
+            `• 👑 **Despacho CEO:** Escuchando en vivo 24/7 (sin necesidad de @mención)\n` +
+            `• 🎯 **Marketing:** Canal #estrategia-marketing activo para la Co-CEO y para ti\n` +
+            `• 🛰️ **Radar Telemetría:** Registrando métricas en tiempo real\n` +
+            `• 🧠 **Motor de IA:** ${cachedWorkingGeminiModel || GEMINI_MODEL} (Google Gemini)\n` +
+            `• ⏱️ **Tiempo activo (Uptime):** ${upMinutes} minutos\n\n` +
+            `¿Qué aspecto de Imposter revisamos hoy? Dime y nos ponemos en marcha.`,
+        )
+        .setColor(0x10b981)
+        .setTimestamp();
+
+      await message.reply({ embeds: [pingEmbed] });
+      return;
+    }
+
+    try {
+      await message.channel.sendTyping();
+    } catch {
+      /* ignore */
+    }
+
+    const memKey = getMemoryKey(message);
+    const history = conversationMemory.get(memKey) || [];
+
+    const userTag = message.author.tag || message.author.username;
+
+    // Si estamos en el despacho del CEO o en marketing, inyectamos contexto ejecutivo exclusivo y métricas en vivo
+    let promptWithContext = `[Mensaje de ${userTag}]: ${cleanContent}`;
+    if (isMarketingChannel) {
+      promptWithContext = `[CANAL EJECUTIVO — ESTRATEGIA Y MARKETING DE IMPOSTER]:
 Estás en la sala de juntas de marketing con el equipo fundador de Imposter (Tirlem y la Co-CEO / Directora de Marketing).
 El usuario que te escribe es: ${userTag}.
 Tu rol aquí es ser su Chief Marketing Copilot (Director Creativo y de Crecimiento):
@@ -761,8 +836,8 @@ Tu rol aquí es ser su Chief Marketing Copilot (Director Creativo y de Crecimien
 - Dispositivos: Android: ${botLiveMetrics.deviceCounts.android}, iOS: ${botLiveMetrics.deviceCounts.ios}, PC: ${botLiveMetrics.deviceCounts.desktop}
 
 [Mensaje de ${userTag}]: ${cleanContent}`;
-  } else if (isCEOChannel) {
-    promptWithContext = `[CANAL PRIVADO — DESPACHO CON TIRLEM]:
+    } else if (isCEOChannel) {
+      promptWithContext = `[CANAL PRIVADO — DESPACHO CON TIRLEM]:
 Estás hablando a solas con Tirlem (creador de Imposter).
 Mantén tu personalidad auténtica: sereno, analítico, directo, con los pies en la tierra y CERO adulación.
 Eres su socio y copiloto técnico/estratégico: evalúa con sinceridad la fase del producto (estamos en el día cero de validación, sin ventas masivas ni humo), analiza pros y contras de cada decisión y enfócate en la validación real del juego con usuarios reales.
@@ -778,30 +853,45 @@ Eres su socio y copiloto técnico/estratégico: evalúa con sinceridad la fase d
 (Si Tirlem te pregunta por estadísticas, jugadores o métricas, dale estos números reales con total transparencia).
 
 [Mensaje de Tirlem]: ${cleanContent}`;
-  } else if (isFundadorChannel) {
-    promptWithContext = `[CANAL EXCLUSIVO FUNDADORES VIP]: El usuario ${userTag} es un Miembro Fundador Vitalicio ($9.80 USD). Trátalo con cordialidad y cercanía.\n\n[Mensaje]: ${cleanContent}`;
-  }
-
-  logDebug(`📩 Mensaje recibido en #${channelName || "DM"} de ${userTag}: "${cleanContent}"`);
-
-  const aiReply = await askAI(promptWithContext, history);
-  logDebug(`📤 Enviando respuesta a Discord (${aiReply.length} chars)`);
-
-  // Actualizar memoria
-  history.push({ role: "user", parts: [{ text: cleanContent }] });
-  history.push({ role: "model", parts: [{ text: aiReply }] });
-  if (history.length > 8) history.splice(0, history.length - 8);
-  conversationMemory.set(memKey, history);
-
-  if (aiReply.length > 1900) {
-    const chunks = aiReply.match(/[\s\S]{1,1900}/g) || [aiReply];
-    for (const chunk of chunks) {
-      await message.reply(chunk);
+    } else if (isFundadorChannel) {
+      promptWithContext = `[CANAL EXCLUSIVO FUNDADORES VIP]: El usuario ${userTag} es un Miembro Fundador Vitalicio ($9.80 USD). Trátalo con cordialidad y cercanía.\n\n[Mensaje]: ${cleanContent}`;
     }
-  } else {
-    await message.reply(aiReply);
+
+    logDebug(`📩 Mensaje recibido en #${channelName || "DM"} de ${userTag}: "${cleanContent}"`);
+
+    const aiReply = await askAI(promptWithContext, history);
+    logDebug(`📤 Enviando respuesta a Discord (${aiReply.length} chars)`);
+
+    // Actualizar memoria
+    history.push({ role: "user", parts: [{ text: cleanContent }] });
+    history.push({ role: "model", parts: [{ text: aiReply }] });
+    if (history.length > 8) history.splice(0, history.length - 8);
+    conversationMemory.set(memKey, history);
+
+    if (aiReply.length > 1900) {
+      const chunks = aiReply.match(/[\s\S]{1,1900}/g) || [aiReply];
+      for (const chunk of chunks) {
+        await message.reply(chunk);
+      }
+    } else {
+      await message.reply(aiReply);
+    }
+    logDebug(`✅ Respuesta enviada a Discord exitosamente.`);
+  } catch (err) {
+    lastDiscordError = {
+      message: err.message,
+      stack: err.stack?.slice(0, 300),
+      time: new Date().toISOString(),
+    };
+    logDebug("❌ Error procesando mensaje de Discord:", err.message);
+    try {
+      await message.reply(
+        "⚠️ Tuve un micro-corte temporal al conectar con la IA de Google. Mi conexión a Discord y el despacho siguen 100% activos. Por favor repíteme tu mensaje o prueba con `!ping`.",
+      );
+    } catch {
+      /* ignore */
+    }
   }
-  logDebug(`✅ Respuesta enviada a Discord exitosamente.`);
 });
 
 process.on("unhandledRejection", (err) => {
@@ -927,17 +1017,45 @@ http
       return;
     }
 
-    // Default GET status
+    // Default GET status (Diagnóstico completo para monitoreo en vivo)
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
-      JSON.stringify({
-        status: "online",
-        bot: "Atlas",
-        version: "1.1.0",
-        uptime: Math.round(process.uptime()),
-        timestamp: new Date().toISOString(),
-        metrics: botLiveMetrics,
-      }),
+      JSON.stringify(
+        {
+          status: "online",
+          bot: "Atlas",
+          version: "1.2.0",
+          uptimeSeconds: Math.round(process.uptime()),
+          timestamp: new Date().toISOString(),
+          initTime: botInitTime,
+          discord: {
+            ready: client.isReady(),
+            user: client.user ? client.user.tag : null,
+            userId: client.user ? client.user.id : null,
+            guildCount: client.guilds.cache.size,
+            guilds: client.guilds.cache.map((g) => ({
+              id: g.id,
+              name: g.name,
+              memberCount: g.memberCount,
+              canManageChannels: !!g.members.me?.permissions?.has(
+                PermissionFlagsBits.ManageChannels,
+              ),
+              canManageRoles: !!g.members.me?.permissions?.has(PermissionFlagsBits.ManageRoles),
+            })),
+            lastMessageReceived,
+            lastDiscordError,
+          },
+          ai: {
+            geminiActive: !!GEMINI_API_KEY,
+            groqActive: !!GROQ_API_KEY,
+            openRouterActive: !!OPENROUTER_API_KEY,
+            activeModel: cachedWorkingGeminiModel || GEMINI_MODEL,
+          },
+          metrics: botLiveMetrics,
+        },
+        null,
+        2,
+      ),
     );
   })
   .listen(PORT, () => {
@@ -960,5 +1078,10 @@ http
   });
 
 client.login(DISCORD_BOT_TOKEN).catch((err) => {
+  lastDiscordError = {
+    message: err.message,
+    type: "LOGIN_ERROR",
+    time: new Date().toISOString(),
+  };
   console.error("❌ Error al iniciar sesión en Discord:", err.message);
 });

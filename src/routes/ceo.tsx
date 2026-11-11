@@ -1488,6 +1488,22 @@ Pasos:
                 {webhookFeedback.msg}
               </p>
             )}
+
+            <div className="pt-2 border-t border-white/5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Bot Atlas en Render Cloud
+              </span>
+              <a
+                href="https://atlas-bot-2xh4.onrender.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px]"
+              >
+                <span>Verificar Diagnóstico / Despertar Bot</span>
+                <span>↗</span>
+              </a>
+            </div>
           </div>
 
           {/* Acciones de Mantenimiento */}
