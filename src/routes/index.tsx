@@ -4,66 +4,15 @@ import {
   Volume2,
   VolumeX,
   Trophy,
-  RotateCcw,
-  Plus,
-  Minus,
-  Trash2,
-  ShieldAlert,
-  Sparkles,
-  Check,
-  X,
-  Fingerprint,
-  Target,
-  User,
   Lock,
-  Unlock,
-  KeyRound,
-  Delete,
-  Play,
   LogOut,
   Settings,
   Smartphone,
-  Users,
-  Share2,
-  Download,
-  Shuffle,
-  ArrowRight,
-  ArrowLeft,
-  LayoutGrid,
   Crown,
   QrCode,
-  Copy,
-  BarChart3,
-  ShieldCheck,
-  Bell,
-  Clock,
-  Edit3,
-  Sun,
-  CreditCard,
-  Wallet,
-  Building2,
-  ExternalLink,
-  Send,
   Ticket,
-  Loader2,
-  CheckCircle2,
-  MessageSquare,
-  Activity,
-  RefreshCw,
-  Utensils,
-  MapPin,
-  PawPrint,
-  Briefcase,
-  Film,
-  Gamepad2,
-  Music2,
-  Globe2,
-  Dices,
-  Flame,
-  Package,
 } from "lucide-react";
 import { acquireScreenWakeLock, releaseScreenWakeLock } from "@/lib/wake-lock";
-import { ConfettiCanvas } from "@/lib/confetti";
 import {
   initPwaInstallPrompt,
   isStandaloneMode,
@@ -81,37 +30,26 @@ import {
   TESTER_COUPON_DURATION_MS,
   VIP_COUPON_HASHES_ORDERED,
   STORAGE_KEYS,
-  getDecryptedVipCodes,
-  generateGuestPass,
 } from "@/lib/security";
 import {
   consumeSingleUseCouponServerFn,
-  getCouponServerStatusServerFn,
-  testDiscordWebhookServerFn,
   getPaymentConfigServerFn,
-  savePaymentConfigServerFn,
-  notifyPaymentIntentServerFn,
   submitPaymentProofServerFn,
   checkPaymentStatusServerFn,
-  getPendingPaymentsServerFn,
-  reviewPaymentServerFn,
   consumeFounderServerFn,
   consumeGuestPassServerFn,
   getFounderGuestPassesServerFn,
 } from "@/lib/coupon-server";
 import { trackGameEvent } from "@/lib/telemetry";
-import { getGlobalMetricsServerFn, GlobalMetrics } from "@/lib/telemetry-server";
 import {
   PaymentConfig,
   DEFAULT_PAYMENT_CONFIG,
   sanitizePaymentConfig,
-  PendingPayment,
   PartyPassPlan,
   PARTY_PASS_PLANS,
 } from "@/lib/payment-config";
 import { DEFAULT_CATEGORIES, ADULT_CATEGORY, ADULT_WORDS, PRO_CATEGORIES } from "@/data/categories";
-import { CategoryIcon } from "@/components/CategoryIcon";
-import { ROUND_EVENTS, PLAYER_PALETTE, getPlayerBadge } from "@/data/game-events";
+import { ROUND_EVENTS, getPlayerBadge } from "@/data/game-events";
 import {
   AdultPinModal,
   FounderPassesModal,
@@ -296,12 +234,6 @@ function Game() {
   >("pagomovil");
   const [copiedPayField, setCopiedPayField] = useState<string | null>(null);
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(DEFAULT_PAYMENT_CONFIG);
-  const [editingPaymentConfig, setEditingPaymentConfig] =
-    useState<PaymentConfig>(DEFAULT_PAYMENT_CONFIG);
-  const [tasaInput, setTasaInput] = useState<string>(
-    String(DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs || 55),
-  );
-  const [paymentSavedFeedback, setPaymentSavedFeedback] = useState<string>("");
 
   // Notificación de Pago y Auto-Aprobación en Vivo
   const [payProofName, setPayProofName] = useState<string>("");
@@ -318,10 +250,6 @@ function Game() {
     method: "Pago Móvil" | "Binance Pay";
   } | null>(null);
 
-  // CEO Pagos Pendientes State
-  const [ceoPendingPayments, setCeoPendingPayments] = useState<PendingPayment[]>([]);
-  const [ceoLoadingPayments, setCeoLoadingPayments] = useState<boolean>(false);
-  const [ceoReviewingId, setCeoReviewingId] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PartyPassPlan>("weekend");
   const [proCodeInput, setProCodeInput] = useState<string>("");
   const [proCodeFeedback, setProCodeFeedback] = useState<{
@@ -332,24 +260,6 @@ function Game() {
   const [codeLockoutUntil, setCodeLockoutUntil] = useState<number>(0);
   const [usedCoupons, setUsedCoupons] = useState<string[]>([]);
   const [proExpiresAt, setProExpiresAt] = useState<number | null>(null);
-
-  // CEO Coupon Monitor & Discord Webhook State
-  const [couponNames, setCouponNames] = useState<Record<number, string>>({ 1: "Ivana" });
-  const [serverCouponsMap, setServerCouponsMap] = useState<
-    Record<string, { activatedAt: number; couponNumber: number }>
-  >({
-    "2cdab88d098bfede40e38a9111c08f70168be515988fe433de30ff6a83ed5b78": {
-      activatedAt: 1794103200000, // Ivana: Sábado 07-Nov 10:00 PM (-04:00)
-      couponNumber: 1,
-    },
-  });
-  const [discordWebhookInput, setDiscordWebhookInput] = useState<string>("");
-  const [discordConnected, setDiscordConnected] = useState<boolean>(false);
-  const [discordFeedback, setDiscordFeedback] = useState<string>("");
-  const [editingCouponIdx, setEditingCouponIdx] = useState<number | null>(null);
-  const [editingNameInput, setEditingNameInput] = useState<string>("");
-  const [ceoDecryptedCodes, setCeoDecryptedCodes] = useState<string[]>([]);
-  const [copiedCouponIdx, setCopiedCouponIdx] = useState<number | null>(null);
 
   // Share / QR Modal State
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
@@ -384,10 +294,6 @@ function Game() {
   const [showPinHint, setShowPinHint] = useState(false);
   const [pinFailedAttempts, setPinFailedAttempts] = useState<number>(0);
   const [pinLockoutUntil, setPinLockoutUntil] = useState<number>(0);
-
-  // Global Telemetry State (Radar CEO)
-  const [globalMetrics, setGlobalMetrics] = useState<GlobalMetrics | null>(null);
-  const [loadingGlobalMetrics, setLoadingGlobalMetrics] = useState<boolean>(false);
 
   const [custom, setCustom] = useState<Record<string, string[]>>({});
   const [category, setCategory] = useState("Aleatoria");
@@ -489,8 +395,6 @@ function Game() {
       if (isValidStoredToken(storedCeoToken, "ceo")) {
         setIsCeoAdmin(true);
         setIsProUnlocked(true);
-        const codes = getDecryptedVipCodes(storedCeoToken);
-        if (codes.length > 0) setCeoDecryptedCodes(codes);
       } else if (storedCeoToken) {
         localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
       }
@@ -513,67 +417,6 @@ function Game() {
         }
       }
 
-      const savedWebhook = localStorage.getItem(STORAGE_KEYS.DISCORD_WEBHOOK);
-      if (savedWebhook) {
-        setDiscordWebhookInput(savedWebhook);
-        setDiscordConnected(true);
-      }
-
-      const savedTesterNames = localStorage.getItem(STORAGE_KEYS.COUPON_NAMES);
-      if (savedTesterNames) {
-        try {
-          setCouponNames({ 1: "Ivana", ...JSON.parse(savedTesterNames) });
-        } catch {
-          /* ignore */
-        }
-      }
-
-      const savedRegistry = localStorage.getItem("impostor-coupon-registry");
-      if (savedRegistry) {
-        try {
-          const parsed = JSON.parse(savedRegistry) as Record<
-            string,
-            { activatedAt: number; couponNumber: number }
-          >;
-          // Garantizar que el cupón de Ivana conserve su fecha histórica real de activación (07-Nov 10:00 PM)
-          if (parsed["2cdab88d098bfede40e38a9111c08f70168be515988fe433de30ff6a83ed5b78"]) {
-            parsed["2cdab88d098bfede40e38a9111c08f70168be515988fe433de30ff6a83ed5b78"].activatedAt =
-              1794103200000;
-          }
-          setServerCouponsMap((prev) => ({ ...prev, ...parsed }));
-        } catch {
-          /* ignore */
-        }
-      }
-
-      // Sincronizar en segundo plano con el servidor de Cloudflare
-      getCouponServerStatusServerFn({ data: { defaultWebhook: savedWebhook || "" } })
-        .then((res) => {
-          if (res?.usedCoupons?.length) {
-            setServerCouponsMap((prev) => {
-              const updated = { ...prev };
-              res.usedCoupons.forEach((c) => {
-                updated[c.hash] = { activatedAt: c.activatedAt, couponNumber: c.couponNumber };
-              });
-              // Conservar siempre el timestamp real de Ivana
-              if (updated["2cdab88d098bfede40e38a9111c08f70168be515988fe433de30ff6a83ed5b78"]) {
-                updated[
-                  "2cdab88d098bfede40e38a9111c08f70168be515988fe433de30ff6a83ed5b78"
-                ].activatedAt = 1794103200000;
-              }
-              try {
-                localStorage.setItem("impostor-coupon-registry", JSON.stringify(updated));
-              } catch {
-                /* ignore */
-              }
-              return updated;
-            });
-          }
-        })
-        .catch(() => {
-          /* offline fallback */
-        });
-
       // Cargar e hidratar Métodos de Pago
       const savedPayConfig = localStorage.getItem("impostor-payment-config");
       let initialPayConfig = DEFAULT_PAYMENT_CONFIG;
@@ -581,8 +424,6 @@ function Game() {
         try {
           initialPayConfig = sanitizePaymentConfig(JSON.parse(savedPayConfig));
           setPaymentConfig(initialPayConfig);
-          setEditingPaymentConfig(initialPayConfig);
-          setTasaInput(String(initialPayConfig.pagoMovil.tasaBs || 55));
         } catch {
           /* ignore */
         }
@@ -732,116 +573,6 @@ function Game() {
     setShowProModal(true);
   };
 
-  const handleShareCoupon = async (
-    couponCode: string,
-    couponNumber: number,
-    testerLabel: string,
-  ) => {
-    playPop(soundEnabled);
-    const baseUrl =
-      shareUrl ||
-      (typeof window !== "undefined"
-        ? window.location.origin
-        : "https://imposter.manu-07games.workers.dev");
-    const inviteUrl = `${baseUrl}/?code=${couponCode}`;
-    const shareText = `¡Hola ${testerLabel}! 🕵️ Te invito a jugar Imposter con un Party Pass PRO VIP de 48 horas gratis 🎟️✨.\n\nToca aquí para activar tu pase de cortesía:\n${inviteUrl}`;
-
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try {
-        await navigator.share({
-          title: "Imposter — Party Pass PRO VIP (48h)",
-          text: shareText,
-          url: inviteUrl,
-        });
-        return;
-      } catch {
-        /* fallback al compartir de WhatsApp */
-      }
-    }
-
-    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
-    if (typeof window !== "undefined") {
-      window.open(waUrl, "_blank", "noopener,noreferrer");
-    }
-  };
-
-  const handleCopyCouponLink = async (
-    couponCode: string,
-    couponNumber: number,
-    testerLabel: string,
-  ) => {
-    playPop(soundEnabled);
-    const baseUrl =
-      shareUrl ||
-      (typeof window !== "undefined"
-        ? window.location.origin
-        : "https://imposter.manu-07games.workers.dev");
-    const inviteUrl = `${baseUrl}/?code=${couponCode}`;
-    const shareText = `¡Hola ${testerLabel}! 🕵️ Te invito a jugar Imposter con un Party Pass PRO VIP de 48 horas gratis 🎟️✨.\n\nToca aquí para activar tu pase:\n${inviteUrl}`;
-
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareText);
-      } else if (typeof document !== "undefined") {
-        const ta = document.createElement("textarea");
-        ta.value = shareText;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      setCopiedCouponIdx(couponNumber);
-      setTimeout(() => {
-        setCopiedCouponIdx((prev) => (prev === couponNumber ? null : prev));
-      }, 2500);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const handleSavePaymentConfig = async () => {
-    playPop(soundEnabled);
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.CEO_TOKEN) : null;
-    if (!token) return;
-
-    const parsedTasa = parseFloat(tasaInput);
-    const validTasa = !isNaN(parsedTasa) && parsedTasa > 0 ? parsedTasa : 55;
-    const configToSave: PaymentConfig = {
-      ...editingPaymentConfig,
-      pagoMovil: {
-        ...editingPaymentConfig.pagoMovil,
-        tasaBs: validTasa,
-      },
-    };
-    setEditingPaymentConfig(configToSave);
-    setTasaInput(String(validTasa));
-
-    try {
-      const res = await savePaymentConfigServerFn({
-        data: {
-          ceoToken: token,
-          config: configToSave,
-        },
-      });
-
-      if (res.success && res.config) {
-        setPaymentConfig(res.config);
-        localStorage.setItem("impostor-payment-config", JSON.stringify(res.config));
-        setPaymentSavedFeedback("✓ Métodos de pago guardados exitosamente");
-        setTimeout(() => setPaymentSavedFeedback(""), 3500);
-      } else {
-        setPaymentSavedFeedback("⚠️ Error al guardar en el servidor");
-      }
-    } catch {
-      // Fallback local
-      setPaymentConfig(configToSave);
-      localStorage.setItem("impostor-payment-config", JSON.stringify(configToSave));
-      setPaymentSavedFeedback("✓ Guardado localmente en este dispositivo");
-      setTimeout(() => setPaymentSavedFeedback(""), 3500);
-    }
-  };
-
   const handleCopyPayField = async (text: string, fieldName: string) => {
     playPop(soundEnabled);
     if (!text) return;
@@ -923,47 +654,6 @@ function Game() {
       setPayProofFeedback("⚠️ Error de conexión. Intenta de nuevo.");
     } finally {
       setPayProofSubmitting(false);
-    }
-  };
-
-  const refreshCeoPayments = async () => {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.CEO_TOKEN) : null;
-    if (!token) return;
-    setCeoLoadingPayments(true);
-    try {
-      const res = await getPendingPaymentsServerFn({ data: { ceoToken: token } });
-      if (res?.success && res.payments) {
-        setCeoPendingPayments(res.payments);
-      }
-    } catch {
-      /* ignore */
-    } finally {
-      setCeoLoadingPayments(false);
-    }
-  };
-
-  const handleReviewPayment = async (paymentId: string, action: "approve" | "reject") => {
-    playPop(soundEnabled);
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.CEO_TOKEN) : null;
-    if (!token) return;
-    setCeoReviewingId(paymentId);
-    try {
-      const res = await reviewPaymentServerFn({
-        data: {
-          ceoToken: token,
-          paymentId,
-          action,
-        },
-      });
-      if (res?.success && res.payments) {
-        setCeoPendingPayments(res.payments);
-      }
-    } catch {
-      /* ignore */
-    } finally {
-      setCeoReviewingId(null);
     }
   };
 
@@ -1064,8 +754,7 @@ function Game() {
       localStorage.setItem(STORAGE_KEYS.CEO_TOKEN, token);
       localStorage.setItem(STORAGE_KEYS.PRO_TOKEN, token);
       localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
-      const codes = getDecryptedVipCodes(token);
-      if (codes.length > 0) setCeoDecryptedCodes(codes);
+
       setProCodeFeedback({
         type: "success",
         text: "¡Bienvenido CEO! Redirigiendo a tu Centro de Mandos...",
@@ -1246,119 +935,6 @@ function Game() {
       await navigator.clipboard.writeText(url);
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2500);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const resetAnalytics = async () => {
-    playPop(soundEnabled);
-    const empty: AnalyticsState = {
-      roundsPlayed: 0,
-      roundsCompleted: 0,
-      paywallViews: 0,
-      categoryCounts: {},
-    };
-    setAnalytics(empty);
-    localStorage.setItem("impostor-analytics", JSON.stringify(empty));
-
-    // Reiniciar también el radar global del servidor y el bot de Atlas
-    try {
-      const fresh = await getGlobalMetricsServerFn({ data: { reset: true } });
-      setGlobalMetrics(fresh);
-    } catch {
-      /* ignore */
-    }
-
-    try {
-      fetch("https://atlas-bot-2xh4.onrender.com/api/telemetry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reset" }),
-        mode: "cors",
-      }).catch(() => {});
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const handleSaveAndTestDiscord = async () => {
-    const url = discordWebhookInput.trim();
-    if (!url) {
-      setDiscordFeedback("Ingresa la URL del Webhook de Discord.");
-      return;
-    }
-    setDiscordFeedback("Probando conexión con Discord...");
-    playPop(soundEnabled);
-    try {
-      const res = await testDiscordWebhookServerFn({ data: { webhookUrl: url } });
-      if (res.success) {
-        setDiscordConnected(true);
-        localStorage.setItem(STORAGE_KEYS.DISCORD_WEBHOOK, url);
-        setDiscordFeedback("¡Conectado! Revisa tu canal de Discord (mensaje de prueba enviado).");
-      } else {
-        setDiscordFeedback(res.error || "Error al conectar con Discord.");
-      }
-    } catch {
-      setDiscordFeedback("Error de red al conectar con Discord.");
-    }
-    setTimeout(() => setDiscordFeedback(""), 6000);
-  };
-
-  const handleSaveTesterName = (idx: number, name: string) => {
-    const trimmed = name.trim();
-    const updated = { ...couponNames, [idx]: trimmed || (idx === 1 ? "Ivana" : `Tester #${idx}`) };
-    setCouponNames(updated);
-    localStorage.setItem(STORAGE_KEYS.COUPON_NAMES, JSON.stringify(updated));
-    setEditingCouponIdx(null);
-  };
-
-  const handleResetSingleCoupon = async (hash: string) => {
-    playPop(soundEnabled);
-    const nextUsed = usedCoupons.filter((h) => h !== hash);
-    setUsedCoupons(nextUsed);
-    localStorage.setItem(STORAGE_KEYS.USED_COUPONS, JSON.stringify(nextUsed));
-
-    setServerCouponsMap((prev) => {
-      const copy = { ...prev };
-      delete copy[hash];
-      try {
-        localStorage.setItem("impostor-coupon-registry", JSON.stringify(copy));
-      } catch {
-        /* ignore */
-      }
-      return copy;
-    });
-
-    try {
-      await consumeSingleUseCouponServerFn({
-        data: { couponIdHash: hash, action: "reset" },
-      });
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const refreshCouponStatus = async () => {
-    playPop(soundEnabled);
-    try {
-      const res = await getCouponServerStatusServerFn({
-        data: { defaultWebhook: discordWebhookInput || "" },
-      });
-      if (res?.usedCoupons) {
-        setServerCouponsMap((prev) => {
-          const updated = { ...prev };
-          res.usedCoupons.forEach((c) => {
-            updated[c.hash] = { activatedAt: c.activatedAt, couponNumber: c.couponNumber };
-          });
-          try {
-            localStorage.setItem("impostor-coupon-registry", JSON.stringify(updated));
-          } catch {
-            /* ignore */
-          }
-          return updated;
-        });
-      }
     } catch {
       /* ignore */
     }
