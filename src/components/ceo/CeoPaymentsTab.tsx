@@ -132,22 +132,13 @@ export function CeoPaymentsTab({
       </div>
 
       {/* Encabezado de Sección */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="font-display text-lg text-foreground">
-            MÉTODOS DE COBRO Y CUENTAS RECEPTORAS
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            Configura los datos bancarios y wallets que los clientes verán en el Paywall de
-            Imposter.
-          </p>
-        </div>
-        <button
-          onClick={handleSaveConfig}
-          className="rounded-xl bg-primary hover:brightness-110 px-5 py-2.5 text-xs font-semibold text-primary-foreground transition cursor-pointer shadow-md shrink-0"
-        >
-          {savePaymentSuccess ? "¡Guardado con éxito!" : "Guardar Todos los Cambios"}
-        </button>
+      <div>
+        <h3 className="font-display text-lg text-foreground">
+          MÉTODOS DE COBRO Y CUENTAS RECEPTORAS
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          Configura los datos bancarios y wallets que los clientes verán en el Paywall de Imposter.
+        </p>
       </div>
 
       {/* CÉLULA 1: PAGO MÓVIL (BOLÍVARES) */}
