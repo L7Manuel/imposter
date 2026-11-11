@@ -122,17 +122,43 @@ El bot vive en `bot/index.js` y corre en **Render** como un _Web Service_ Node.j
 
 ### ¿Qué hace Atlas?
 
-1. **Escucha los comandos en Discord:**
-   - `/status`: Te dice cuántas partidas van, cuánto se ha jugado y el estado del servidor.
-   - `/metricas`: Te da un reporte financiero y de uso del juego.
-   - `/generar-cupon`: Crea un cupón PRO oficial desde Discord para regalárselo a un amigo o cliente.
-   - `/ping`: Comprueba la latencia del bot.
+1. **Escucha y responde en Discord:**
+   - En `#despacho-ceo`: Conversaciones estratégicas, análisis sin adulación y datos reales de métricas con el CEO (Tirlem).
+   - En `#estrategia-marketing`: Copiloto de contenidos virales, ganchos para TikTok/Reels y campañas de guerrilla con Tirlem y la **Co-CEO**.
+   - `!co-ceo @mención`: Asignación automática del rol ejecutivo oficial a la Co-CEO.
+   - `!ping` / `!status` o _"Atlas ¿Estas activo?"_: Respuesta inmediata de diagnóstico en <100ms.
+   - En `#soporte-o-dudas`: Resolución concisa de preguntas a jugadores.
 2. **Envía alertas en tiempo real:**
-   - Al canal `#metricas-imposter`: Cada vez que un jugador real completa una partida o entra al juego.
-   - Al canal `#pagos-imposter`: Cada vez que alguien reporta un pago o canjea un cupón.
-   - Al canal `#despacho-ceo`: Conversaciones estratégicas y operativas con el CEO.
-3. **Endpoint de Salud HTTP (`/health`):**
-   - Render requiere que el bot responda en el puerto HTTP. Atlas tiene un servidor web Express integrado que responde `200 OK` para mantenerse vivo.
+   - Al canal `#metricas-imposter`: Embeds automáticos de partidas iniciadas, victorias por rol y descargas PWA.
+   - Al canal `#pagos-imposter`: Notificaciones de intención de compra o canjes de cupones.
+3. **Endpoint de Diagnóstico HTTP en Vivo (`GET /`):**
+   - Render reporta en `https://atlas-bot-2xh4.onrender.com` el estado de conexión a Discord (`ready: true`), servidor conectado, permisos y latidos keep-alive.
+
+### 🛰️ Arquitectura de Telemetría de Doble Anillo (Cloudflare Edge + Atlas Render)
+
+```mermaid
+flowchart TD
+    Player["📱 Jugador Real (Amigo / Tester en Fiesta)"]
+    CeoDevice["👑 Tu Dispositivo con Modo CEO"]
+
+    subgraph FiltroProteccion ["🛡️ Filtro de Pureza de Datos"]
+        CeoCheck{"¿Es el dispositivo del CEO?"}
+    end
+
+    Player --> CeoCheck
+    CeoDevice --> CeoCheck
+
+    CeoCheck -- "SÍ (Token CEO activo)" --> Ignorar["🚫 Se omite silenciosamente\n(No ensucia tus estadísticas con pruebas)"]
+    CeoCheck -- "NO (Jugador Real)" --> Edge["⚡ Cloudflare Workers Edge API"]
+
+    subgraph ReporteDual ["🛰️ Difusión Simultánea de Eventos"]
+        Edge --> PanelCEO["📊 Panel /ceo (Pestaña Métricas)\n• Partidas reales\n• Dispositivos Android/iOS/PC\n• Categorías más jugadas"]
+        Edge --> AtlasRender["🤖 Atlas en Render Cloud\n(https://atlas-bot-2xh4.onrender.com)"]
+        Edge -. "Opcional Webhook" .-> DirectWebhook["🔔 Canal Discord vía Webhook"]
+    end
+
+    AtlasRender --> DiscordChannel["💬 Canal #metricas-imposter\n• Embed azul: ¡Nueva partida!\n• Embed verde: Partida terminada con ganador\n• Embed morado: PWA instalada"]
+```
 
 ### ¿Qué pasa si Render dice que la instancia gratuita se "durmió"?
 
