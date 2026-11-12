@@ -54,8 +54,8 @@ function isTelemetryRateLimited(clientKey: string): boolean {
   const now = Date.now();
   const timestamps = globalThis.__imposterTelemetryRateLimitMap.get(clientKey) || [];
   const recent = timestamps.filter((t) => now - t < 60000); // 1 minuto
-  if (recent.length >= 15) {
-    return true; // Máximo 15 eventos por minuto
+  if (recent.length >= 60) {
+    return true; // Máximo 60 eventos por minuto
   }
   recent.push(now);
   globalThis.__imposterTelemetryRateLimitMap.set(clientKey, recent);
@@ -217,6 +217,18 @@ export const reportTelemetryServerFn = createServerFn({ method: "POST" })
       store.recentEvents = store.recentEvents.slice(0, 20);
     }
 
+    // Reenvío de alta fidelidad hacia Atlas en Render Cloud (server-to-server)
+    try {
+      await fetch("https://atlas-bot-2xh4.onrender.com/api/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(3000),
+      });
+    } catch {
+      /* ignore */
+    }
+
     return { ok: true };
   });
 
@@ -224,6 +236,7 @@ export const getGlobalMetricsServerFn = createServerFn({ method: "POST" })
   .validator((input: { reset?: boolean } | undefined) => input)
   .handler(async ({ data }) => {
     const store = getGlobalMetricsStore();
+
     if (data?.reset) {
       store.totalRoundsStarted = 0;
       store.totalRoundsCompleted = 0;
@@ -233,6 +246,66 @@ export const getGlobalMetricsServerFn = createServerFn({ method: "POST" })
       store.deviceCounts = { android: 0, ios: 0, desktop: 0 };
       store.recentEvents = [];
       store.lastUpdated = Date.now();
+
+      try {
+        await fetch("https://atlas-bot-2xh4.onrender.com/api/telemetry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reset" }),
+          signal: AbortSignal.timeout(3000),
+        });
+      } catch {
+        /* ignore */
+      }
+      return store;
     }
+
+    // Sincronizar con el radar central de Atlas en Render Cloud
+    try {
+      const res = await fetch("https://atlas-bot-2xh4.onrender.com/", {
+        signal: AbortSignal.timeout(3500),
+      });
+      if (res.ok) {
+        const payload = (await res.json()) as {
+          metrics?: {
+            roundsStarted?: number;
+            roundsCompleted?: number;
+            pwaInstalls?: number;
+            paywallViews?: number;
+            categoryCounts?: Record<string, number>;
+            deviceCounts?: { android?: number; ios?: number; desktop?: number };
+          };
+        };
+
+        if (payload?.metrics) {
+          const m = payload.metrics;
+          store.totalRoundsStarted = Math.max(store.totalRoundsStarted, m.roundsStarted || 0);
+          store.totalRoundsCompleted = Math.max(store.totalRoundsCompleted, m.roundsCompleted || 0);
+          store.totalPaywallViews = Math.max(store.totalPaywallViews, m.paywallViews || 0);
+          store.totalPwaInstalls = Math.max(store.totalPwaInstalls, m.pwaInstalls || 0);
+
+          if (m.categoryCounts) {
+            for (const [cat, cnt] of Object.entries(m.categoryCounts)) {
+              store.categoryCounts[cat] = Math.max(store.categoryCounts[cat] || 0, cnt);
+            }
+          }
+          if (m.deviceCounts) {
+            store.deviceCounts.android = Math.max(
+              store.deviceCounts.android,
+              m.deviceCounts.android || 0,
+            );
+            store.deviceCounts.ios = Math.max(store.deviceCounts.ios, m.deviceCounts.ios || 0);
+            store.deviceCounts.desktop = Math.max(
+              store.deviceCounts.desktop,
+              m.deviceCounts.desktop || 0,
+            );
+          }
+          store.lastUpdated = Date.now();
+        }
+      }
+    } catch {
+      /* fallback to local store if Atlas times out */
+    }
+
     return store;
   });

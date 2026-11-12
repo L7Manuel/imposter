@@ -62,17 +62,12 @@ export function isCeoDevice(): boolean {
 
 /**
  * Envía un evento de telemetría sin bloquear la interfaz de usuario ni ralentizar el juego.
- * Doble canal: Servidor TanStack + Radar de Atlas en Render Cloud.
+ * Doble canal: Servidor TanStack (Cloudflare) + Radar de Atlas en Render Cloud.
  */
 export async function trackGameEvent(
   payload: Omit<TelemetryEventPayload, "device">,
   customDevice?: string,
 ): Promise<void> {
-  // 🛡️ Filtro de Tráfico Interno: Si la acción la realiza el CEO en su dispositivo, se omite silenciosamente
-  if (isCeoDevice()) {
-    return;
-  }
-
   const device = customDevice || detectUserDevice();
   const fullPayload: TelemetryEventPayload = { ...payload, device };
 

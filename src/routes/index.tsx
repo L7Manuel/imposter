@@ -565,13 +565,11 @@ function Game() {
     playPop(soundEnabled);
     setProCodeFeedback(null);
     setProModalView("perks");
-    if (!isCeoAdmin) {
-      trackAnalytics((prev) => ({
-        ...prev,
-        paywallViews: prev.paywallViews + 1,
-      }));
-      void trackGameEvent({ type: "paywall_view", planId: selectedPlan });
-    }
+    trackAnalytics((prev) => ({
+      ...prev,
+      paywallViews: prev.paywallViews + 1,
+    }));
+    void trackGameEvent({ type: "paywall_view", planId: selectedPlan });
     setShowProModal(true);
   };
 
@@ -1089,9 +1087,7 @@ function Game() {
       const outcome = await promptPwaInstall();
       if (outcome === "accepted") {
         setShowInstallModal(false);
-        if (!isCeoAdmin) {
-          void trackGameEvent({ type: "pwa_install" });
-        }
+        void trackGameEvent({ type: "pwa_install" });
         return;
       }
     }
@@ -1274,17 +1270,14 @@ function Game() {
     setShowImpostorGuessModal(false);
 
     // 🛰️ Telemetría en vivo (Avisa a Discord #metricas-imposter y al Radar CEO)
-    // 🛡️ Filtro de Tráfico Interno: Omite las partidas de prueba del CEO
-    if (!isCeoAdmin) {
-      void trackGameEvent({
-        type: "round_start",
-        category: chosenCat,
-        playerCount: names.length,
-        impostorCount: chosenImpostors.length,
-        isAdult: chosenCat === ADULT_CATEGORY,
-        isJester: assignedJester !== null,
-      });
-    }
+    void trackGameEvent({
+      type: "round_start",
+      category: chosenCat,
+      playerCount: names.length,
+      impostorCount: chosenImpostors.length,
+      isAdult: chosenCat === ADULT_CATEGORY,
+      isJester: assignedJester !== null,
+    });
 
     setPhase("reveal");
   };
@@ -1342,13 +1335,11 @@ function Game() {
         `¡Cayeron en su trampa! ${getPlayerName(accused)} era el Bufón y logró que el grupo lo votara.`,
       );
       trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
-      if (!isCeoAdmin) {
-        void trackGameEvent({
-          type: "round_finish",
-          winner: "jester",
-          category: playedCategory || category,
-        });
-      }
+      void trackGameEvent({
+        type: "round_finish",
+        winner: "jester",
+        category: playedCategory || category,
+      });
       resolveRoundWithSuspense(true);
     } else if (isImp) {
       // Impostor was caught! Give chance to guess the secret word
@@ -1361,13 +1352,11 @@ function Game() {
       );
       updateScore("impostors");
       trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
-      if (!isCeoAdmin) {
-        void trackGameEvent({
-          type: "round_finish",
-          winner: "impostors",
-          category: playedCategory || category,
-        });
-      }
+      void trackGameEvent({
+        type: "round_finish",
+        winner: "impostors",
+        category: playedCategory || category,
+      });
       resolveRoundWithSuspense(false);
     }
   };
@@ -1381,13 +1370,11 @@ function Game() {
       );
       updateScore("impostors");
       trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
-      if (!isCeoAdmin) {
-        void trackGameEvent({
-          type: "round_finish",
-          winner: "impostors",
-          category: playedCategory || category,
-        });
-      }
+      void trackGameEvent({
+        type: "round_finish",
+        winner: "impostors",
+        category: playedCategory || category,
+      });
       resolveRoundWithSuspense(false);
     } else {
       const updatedCaught =
@@ -1403,13 +1390,11 @@ function Game() {
         );
         updateScore("innocents");
         trackAnalytics((prev) => ({ ...prev, roundsCompleted: prev.roundsCompleted + 1 }));
-        if (!isCeoAdmin) {
-          void trackGameEvent({
-            type: "round_finish",
-            winner: "innocents",
-            category: playedCategory || category,
-          });
-        }
+        void trackGameEvent({
+          type: "round_finish",
+          winner: "innocents",
+          category: playedCategory || category,
+        });
         resolveRoundWithSuspense(true);
       } else {
         // Still more impostors to catch! Stay in vote phase
