@@ -8,6 +8,7 @@ import {
   isValidFounderCode,
   generateGuestPass,
   isValidGuestPass,
+  STORAGE_KEYS,
 } from "@/lib/security";
 import {
   PaymentConfig,
@@ -109,6 +110,23 @@ export async function sendDiscordWebhookEmbed({
     return false;
   }
 }
+
+/**
+ * Valida la sesión del CEO en el servidor leyendo la cookie segura (Zero-Flicker SSR).
+ * Permite que el servidor renderice directamente la consola del CEO sin parpadeos de carga ni error 418.
+ */
+export const checkCeoAuthServerFn = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { getCookie } = await import("@tanstack/react-start/server");
+    const token = getCookie(STORAGE_KEYS.CEO_TOKEN);
+    if (token && isValidStoredToken(token, "ceo")) {
+      return { isAuthorized: true, token };
+    }
+  } catch {
+    /* fallback to unauthenticated */
+  }
+  return { isAuthorized: false, token: null };
+});
 
 export const consumeSingleUseCouponServerFn = createServerFn({ method: "POST" })
   .validator(

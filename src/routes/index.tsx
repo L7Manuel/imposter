@@ -756,6 +756,7 @@ function Game() {
       setProExpiresAt(null);
       setFailedCodeAttempts(0);
       localStorage.setItem(STORAGE_KEYS.CEO_TOKEN, token);
+      document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=${token}; path=/; max-age=31536000; SameSite=Lax`;
       localStorage.setItem(STORAGE_KEYS.PRO_TOKEN, token);
       localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
 
