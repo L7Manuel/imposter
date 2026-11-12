@@ -300,6 +300,55 @@ export interface AccessCodeVerificationResult {
 }
 
 /**
+ * Normaliza cualquier formato de código de acceso ingresado por testers o usuarios
+ * (mayúsculas/minúsculas, con o sin guiones, con o sin espacios) al formato canónico.
+ * Ejemplos:
+ * - "vip01k9x" | "VIP 01 K9X" | "VIP-1-K9X" -> "VIP-01-K9X"
+ * - "vipfiesta99" | "VIP FIESTA 99" -> "VIP-FIESTA-99"
+ * - "ceoimposter2026" | "CEO IMPOSTER 2026" -> "CEO-IMPOSTER-2026"
+ * - "fndr0001a7b2" -> "FNDR-0001-A7B2"
+ * - "fndr0001p19b4" -> "FNDR0001-P1-9B4"
+ */
+export function normalizeAccessCodeInput(raw: string): string {
+  if (!raw || typeof raw !== "string") return "";
+  const cleaned = raw.trim().toUpperCase().replace(/\s+/g, "");
+
+  // Cupones VIP de prueba (VIP-01 a VIP-10)
+  const vipTesterMatch = cleaned.match(/^VIP-?0?([1-9]|10)-?([A-Z0-9]{3})$/);
+  if (vipTesterMatch) {
+    const num = vipTesterMatch[1]!.padStart(2, "0");
+    const suffix = vipTesterMatch[2]!;
+    return `VIP-${num}-${suffix}`;
+  }
+
+  // Cupón VIP ilimitado
+  const vipFiestaMatch = cleaned.match(/^VIP-?FIESTA-?99$/);
+  if (vipFiestaMatch) {
+    return "VIP-FIESTA-99";
+  }
+
+  // Clave maestra CEO
+  const ceoMatch = cleaned.match(/^CEO-?IMPOSTER-?2026$/);
+  if (ceoMatch) {
+    return "CEO-IMPOSTER-2026";
+  }
+
+  // Código Fundador Vitalicio (FNDR-XXXX-YYYY)
+  const fndrMatch = cleaned.match(/^FNDR-?(\d{4})-?([A-F0-9]{4})$/);
+  if (fndrMatch) {
+    return `FNDR-${fndrMatch[1]}-${fndrMatch[2]}`;
+  }
+
+  // Pase de Invitado Embajador (FNDRXXXX-PX-YYY)
+  const guestMatch = cleaned.match(/^FNDR-?(\d{4})-?P([1-5])-?([A-F0-9]{3})$/);
+  if (guestMatch) {
+    return `FNDR${guestMatch[1]}-P${guestMatch[2]}-${guestMatch[3]}`;
+  }
+
+  return cleaned;
+}
+
+/**
  * Verifica un código ingresado por el usuario sin exponer las claves en texto plano.
  * - "ceo": Acceso maestro ilimitado.
  * - "vip_unlimited": Cupón VIP-FIESTA-99 de uso libre ilimitado.
@@ -312,7 +361,7 @@ export function verifyAccessCode(
   rawInput: string,
   usedCouponHashes: string[] = [],
 ): AccessCodeVerificationResult {
-  const normalized = rawInput.trim().toUpperCase();
+  const normalized = normalizeAccessCodeInput(rawInput);
   if (!normalized || normalized.length > 40) {
     return { role: null, token: null, couponIdHash: null };
   }

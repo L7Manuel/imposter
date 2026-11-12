@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { RefreshCw, CheckCircle2, DollarSign, Bell } from "lucide-react";
 import { reviewPaymentServerFn, savePaymentConfigServerFn } from "@/lib/coupon-server";
-import { PaymentConfig, PendingPayment } from "@/lib/payment-config";
+import { PaymentConfig, PendingPayment, DEFAULT_PAYMENT_CONFIG } from "@/lib/payment-config";
 import { STORAGE_KEYS } from "@/lib/security";
 
 export interface CeoPaymentsTabProps {
@@ -29,8 +29,16 @@ export function CeoPaymentsTab({
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem(STORAGE_KEYS.DISCORD_WEBHOOK);
-    setHasDiscordWebhook(Boolean(stored && stored.startsWith("https://discord.com/api/webhooks/")));
-  }, []);
+    const hasValidHook = Boolean(
+      (stored && stored.startsWith("https://discord.com/api/webhooks/")) ||
+      (paymentConfig.discordWebhookUrl &&
+        paymentConfig.discordWebhookUrl.startsWith("https://discord.com/api/webhooks/")),
+    );
+    setHasDiscordWebhook(hasValidHook);
+    if (stored && !paymentConfig.discordWebhookUrl) {
+      setPaymentConfig((prev) => ({ ...prev, discordWebhookUrl: stored }));
+    }
+  }, [paymentConfig.discordWebhookUrl, setPaymentConfig]);
 
   const handleReview = async (paymentId: string, action: "approve" | "reject") => {
     if (!token) return;
@@ -47,11 +55,15 @@ export function CeoPaymentsTab({
   const handleSaveConfig = async () => {
     if (!token) return;
     try {
-      let webhookUrl: string | undefined;
+      const webhookUrl =
+        paymentConfig.discordWebhookUrl?.trim() ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem(STORAGE_KEYS.DISCORD_WEBHOOK) || undefined
+          : undefined);
+
       if (typeof window !== "undefined") {
-        const storedHook = localStorage.getItem(STORAGE_KEYS.DISCORD_WEBHOOK);
-        if (storedHook && storedHook.startsWith("https://discord.com/api/webhooks/")) {
-          webhookUrl = storedHook;
+        if (webhookUrl && webhookUrl.startsWith("https://discord.com/api/webhooks/")) {
+          localStorage.setItem(STORAGE_KEYS.DISCORD_WEBHOOK, webhookUrl);
         }
         localStorage.setItem(STORAGE_KEYS.PAYMENT_CONFIG, JSON.stringify(paymentConfig));
       }
@@ -176,7 +188,8 @@ export function CeoPaymentsTab({
             </div>
           </div>
           <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-400">
-            Tasa Activa: Bs. {(paymentConfig.pagoMovil.tasaBs || 55).toFixed(2)}
+            Tasa Activa: Bs.{" "}
+            {(paymentConfig.pagoMovil.tasaBs || DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs).toFixed(2)}
           </span>
         </div>
 
@@ -364,7 +377,58 @@ export function CeoPaymentsTab({
         </div>
       </div>
 
-      {/* CÉLULA 4: CALCULADORA DE CONVERSIÓN EN VIVO */}
+      {/* CÉLULA 4: CANAL DE ALERTAS DISCORD (WEBHOOK) */}
+      <div className="rounded-2xl glass-panel p-5 border border-indigo-500/30 bg-indigo-500/[0.03] space-y-4">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-base">📢</span>
+            <div>
+              <h4 className="font-display text-sm text-foreground">
+                ALERTAS EN TIEMPO REAL A DISCORD
+              </h4>
+              <p className="text-[11px] text-muted-foreground">
+                Recibe avisos instantáneos de compras, comprobantes y canjes directamente en tu
+                canal
+              </p>
+            </div>
+          </div>
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
+              hasDiscordWebhook
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                : "bg-white/5 text-muted-foreground border-white/10"
+            }`}
+          >
+            {hasDiscordWebhook ? "🟢 Conectado" : "⚪ Sin Configurar"}
+          </span>
+        </div>
+
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1">
+            Enlace Webhook de Discord
+          </label>
+          <input
+            type="text"
+            value={paymentConfig.discordWebhookUrl || ""}
+            onChange={(e) => {
+              const val = e.target.value.trim();
+              setPaymentConfig({
+                ...paymentConfig,
+                discordWebhookUrl: val,
+              });
+              if (val.startsWith("https://discord.com/api/webhooks/")) {
+                setHasDiscordWebhook(true);
+              } else {
+                setHasDiscordWebhook(false);
+              }
+            }}
+            placeholder="https://discord.com/api/webhooks/1234567890/abcdef..."
+            className="w-full rounded-xl bg-white/5 border border-white/15 px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-indigo-400"
+          />
+        </div>
+      </div>
+
+      {/* CÉLULA 5: CALCULADORA DE CONVERSIÓN EN VIVO */}
       <div className="rounded-2xl glass-panel p-5 border border-amber-400/30 bg-amber-500/[0.03] space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -376,7 +440,8 @@ export function CeoPaymentsTab({
             </p>
           </div>
           <span className="font-mono text-xs font-bold text-amber-300 bg-amber-400/10 border border-amber-400/40 px-2.5 py-1 rounded-xl">
-            Tasa Activa: Bs. {(paymentConfig.pagoMovil.tasaBs || 55).toFixed(2)}
+            Tasa Activa: Bs.{" "}
+            {(paymentConfig.pagoMovil.tasaBs || DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs).toFixed(2)}
           </span>
         </div>
 
@@ -385,28 +450,40 @@ export function CeoPaymentsTab({
             <span className="text-[11px] text-muted-foreground block">Pase Fiesta (24h)</span>
             <span className="font-bold text-foreground block mt-0.5">$0.99 USD</span>
             <span className="font-mono text-amber-300 font-bold block mt-1.5 text-sm">
-              Bs. {Math.round(0.99 * (paymentConfig.pagoMovil.tasaBs || 55)).toLocaleString()}
+              Bs.{" "}
+              {Math.round(
+                0.99 * (paymentConfig.pagoMovil.tasaBs || DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs),
+              ).toLocaleString()}
             </span>
           </div>
           <div className="rounded-xl bg-black/40 border border-white/10 p-3">
             <span className="text-[11px] text-muted-foreground block">Fin de Semana (72h)</span>
             <span className="font-bold text-foreground block mt-0.5">$1.99 USD</span>
             <span className="font-mono text-amber-300 font-bold block mt-1.5 text-sm">
-              Bs. {Math.round(1.99 * (paymentConfig.pagoMovil.tasaBs || 55)).toLocaleString()}
+              Bs.{" "}
+              {Math.round(
+                1.99 * (paymentConfig.pagoMovil.tasaBs || DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs),
+              ).toLocaleString()}
             </span>
           </div>
           <div className="rounded-xl bg-black/40 border border-white/10 p-3">
             <span className="text-[11px] text-muted-foreground block">Pase Mensual (30d)</span>
             <span className="font-bold text-foreground block mt-0.5">$3.99 USD</span>
             <span className="font-mono text-amber-300 font-bold block mt-1.5 text-sm">
-              Bs. {Math.round(3.99 * (paymentConfig.pagoMovil.tasaBs || 55)).toLocaleString()}
+              Bs.{" "}
+              {Math.round(
+                3.99 * (paymentConfig.pagoMovil.tasaBs || DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs),
+              ).toLocaleString()}
             </span>
           </div>
           <div className="rounded-xl bg-black/40 border border-amber-400/30 p-3 bg-amber-500/[0.06]">
             <span className="text-[11px] text-amber-300 font-bold block">Fundador Vitalicio</span>
             <span className="font-bold text-foreground block mt-0.5">$9.80 USD</span>
             <span className="font-mono text-amber-300 font-bold block mt-1.5 text-sm">
-              Bs. {Math.round(9.8 * (paymentConfig.pagoMovil.tasaBs || 55)).toLocaleString()}
+              Bs.{" "}
+              {Math.round(
+                9.8 * (paymentConfig.pagoMovil.tasaBs || DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs),
+              ).toLocaleString()}
             </span>
           </div>
         </div>

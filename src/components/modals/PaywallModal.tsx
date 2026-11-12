@@ -19,6 +19,7 @@ import {
   PARTY_PASS_PLANS,
   PaymentConfig,
   PendingPayment,
+  DEFAULT_PAYMENT_CONFIG,
 } from "@/lib/payment-config";
 
 export interface PaywallModalProps {
@@ -563,7 +564,8 @@ export function PaywallModal({
                         Bs.{" "}
                         {Math.round(
                           (PARTY_PASS_PLANS[selectedPlan] || PARTY_PASS_PLANS.weekend).priceUsd *
-                            (paymentConfig.pagoMovil.tasaBs || 55),
+                            (paymentConfig.pagoMovil.tasaBs ||
+                              DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs),
                         ).toLocaleString("es-VE")}
                       </span>
                     </div>
@@ -575,7 +577,8 @@ export function PaywallModal({
                       handleCopyPayField(
                         `Pago Móvil Imposter:\nBanco: ${paymentConfig.pagoMovil.banco}\nTeléfono: ${paymentConfig.pagoMovil.telefono}\nCédula: ${paymentConfig.pagoMovil.cedula}\nTitular: ${paymentConfig.pagoMovil.titular}\nMonto: Bs. ${Math.round(
                           (PARTY_PASS_PLANS[selectedPlan] || PARTY_PASS_PLANS.weekend).priceUsd *
-                            (paymentConfig.pagoMovil.tasaBs || 55),
+                            (paymentConfig.pagoMovil.tasaBs ||
+                              DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs),
                         )}`,
                         "all_pm",
                       )

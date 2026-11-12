@@ -37,16 +37,13 @@ export function CeoTestersTab({
 
   const buildTesterWhatsAppUrl = (code: string, testerName: string) => {
     const name = testerName?.trim() || "Tester VIP";
+    const directUrl = `https://imposter.manu-07games.workers.dev/?code=${code}`;
     const text = `¡Hola ${name}! 🧪 Aquí tienes tu cupón exclusivo de Tester VIP para Imposter (48 horas de acceso PRO gratuito).
 
 🔑 Tu Cupón: ${code}
-📲 Juega aquí: https://imposter.manu-07games.workers.dev
+📲 Activa en 1 toque aquí: ${directUrl}
 
-Pasos para activar:
-1. Abre el enlace en tu navegador móvil.
-2. Toca la corona dorada en la barra superior.
-3. Ingresa tu código en "¿Tienes un código o cupón PRO?".
-4. ¡Listo! Tienes 48h con todas las categorías y modos desbloqueados.`;
+Al tocar el enlace, se abrirá el juego y tu pase VIP de 48 horas quedará listo para activar con todas las categorías y modos desbloqueados. ¡Que empiece la fiesta!`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 

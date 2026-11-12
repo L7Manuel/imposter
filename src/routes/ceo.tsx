@@ -28,8 +28,25 @@ export const Route = createFileRoute("/ceo")({
 });
 
 export function CeoPage() {
-  const [token, setToken] = useState<string | null>(null);
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+  const [isClient, setIsClient] = useState(false);
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.CEO_TOKEN);
+      return stored && isValidStoredToken(stored, "ceo") ? stored : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.CEO_TOKEN);
+      return Boolean(stored && isValidStoredToken(stored, "ceo"));
+    } catch {
+      return false;
+    }
+  });
   const [activeTab, setActiveTab] = useState<"fundadores" | "cobros" | "testers" | "metricas">(
     "fundadores",
   );
@@ -43,12 +60,44 @@ export function CeoPage() {
   // Payments state
   const [payments, setPayments] = useState<PendingPayment[]>([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
-  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(DEFAULT_PAYMENT_CONFIG);
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(() => {
+    if (typeof window === "undefined") return DEFAULT_PAYMENT_CONFIG;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.PAYMENT_CONFIG);
+      return stored ? sanitizePaymentConfig(JSON.parse(stored)) : DEFAULT_PAYMENT_CONFIG;
+    } catch {
+      return DEFAULT_PAYMENT_CONFIG;
+    }
+  });
 
   // Testers state
-  const [decryptedCodes, setDecryptedCodes] = useState<string[]>([]);
-  const [couponNames, setCouponNames] = useState<Record<number, string>>({});
-  const [usedCoupons, setUsedCoupons] = useState<string[]>([]);
+  const [decryptedCodes, setDecryptedCodes] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.CEO_TOKEN);
+      return stored && isValidStoredToken(stored, "ceo") ? getDecryptedVipCodes(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [couponNames, setCouponNames] = useState<Record<number, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.COUPON_NAMES);
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [usedCoupons, setUsedCoupons] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.USED_COUPONS);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Metrics state
   const [metrics, setMetrics] = useState<GlobalMetrics>({
@@ -64,8 +113,9 @@ export function CeoPage() {
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Auth Initialization
+  // Auth Initialization & Sync
   useEffect(() => {
+    setIsClient(true);
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem(STORAGE_KEYS.CEO_TOKEN);
     if (stored && isValidStoredToken(stored, "ceo")) {
@@ -245,6 +295,17 @@ export function CeoPage() {
 
   // Pantalla de Login Restringido
   if (!isAuthorized) {
+    if (!isClient) {
+      return (
+        <main className="flex min-h-screen w-full items-center justify-center p-4 bg-background select-none">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+            <p className="text-xs text-muted-foreground font-mono">Accediendo a Terminal CEO...</p>
+          </div>
+        </main>
+      );
+    }
+
     return (
       <main className="flex min-h-screen w-full items-center justify-center p-4 bg-background select-none">
         <div className="w-full max-w-sm rounded-3xl glass-panel p-6 border border-white/10 shadow-2xl text-center">

@@ -244,13 +244,18 @@ export const savePaymentConfigServerFn = createServerFn({ method: "POST" })
     const sanitized = sanitizePaymentConfig(data.config);
     globalThis.__imposterPaymentConfig = sanitized;
 
-    if (data.discordWebhookUrl) {
-      globalThis.__imposterDiscordWebhookUrl = data.discordWebhookUrl;
+    const webhookToUse =
+      data.discordWebhookUrl ||
+      sanitized.discordWebhookUrl ||
+      globalThis.__imposterDiscordWebhookUrl;
+
+    if (webhookToUse) {
+      globalThis.__imposterDiscordWebhookUrl = webhookToUse;
     }
 
     // Notificar a Discord si hay webhook
     await sendDiscordWebhookEmbed({
-      webhookUrl: data.discordWebhookUrl || globalThis.__imposterDiscordWebhookUrl || "",
+      webhookUrl: webhookToUse || "",
       title: "💳 Configuración de Pagos Actualizada",
       description: "El CEO acaba de actualizar los datos de cobro de Imposter.",
       fields: [

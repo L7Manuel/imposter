@@ -434,7 +434,9 @@ function Game() {
           if (res?.config) {
             setPaymentConfig(res.config);
             setEditingPaymentConfig(res.config);
-            setTasaInput(String(res.config.pagoMovil.tasaBs || 55));
+            setTasaInput(
+              String(res.config.pagoMovil.tasaBs || DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs),
+            );
             try {
               localStorage.setItem("impostor-payment-config", JSON.stringify(res.config));
             } catch {
@@ -612,7 +614,9 @@ function Game() {
 
     const planMeta = PARTY_PASS_PLANS[selectedPlan] || PARTY_PASS_PLANS.weekend;
     const priceUsd = planMeta.priceUsd;
-    const calculatedBs = Math.round(priceUsd * (paymentConfig.pagoMovil.tasaBs || 55));
+    const calculatedBs = Math.round(
+      priceUsd * (paymentConfig.pagoMovil.tasaBs || DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs),
+    );
     const amountStr =
       method === "Pago Móvil"
         ? `Bs. ${calculatedBs.toLocaleString("es-VE")}`
