@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Smartphone, Download } from "lucide-react";
+import { X, Smartphone, Download, Sparkles, Plus, CheckCircle2 } from "lucide-react";
 
 export interface InstallPwaModalProps {
   isOpen: boolean;
@@ -55,7 +55,7 @@ export function InstallPwaModal({
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {isStandalone ? (
             <div className="rounded-2xl bg-emerald-500/15 border border-emerald-500/30 p-4 text-center space-y-2">
-              <span className="text-2xl">🎉</span>
+              <CheckCircle2 size={26} className="text-emerald-400 mx-auto" />
               <h4 className="font-display text-base text-emerald-400">¡App Ya Instalada!</h4>
               <p className="text-xs text-foreground/90 leading-relaxed">
                 Ya estás disfrutando de <strong>Imposter</strong> como una aplicación nativa desde
@@ -66,7 +66,7 @@ export function InstallPwaModal({
             <div className="space-y-3">
               <div className="rounded-2xl bg-primary/10 border border-primary/30 p-3 text-center">
                 <span className="text-xs font-bold text-primary uppercase tracking-wider">
-                  🍎 Guía para iPhone & iPad (Safari)
+                  Guía para iPhone & iPad (Safari)
                 </span>
               </div>
 
@@ -97,8 +97,8 @@ export function InstallPwaModal({
                 <div className="text-left text-xs">
                   <p className="font-semibold text-foreground flex items-center gap-1.5">
                     Añadir a pantalla de inicio
-                    <span className="inline-flex items-center justify-center rounded bg-white/15 px-1.5 py-0.5 text-primary text-xs font-bold">
-                      ➕
+                    <span className="inline-flex items-center justify-center rounded bg-white/15 px-1 py-0.5 text-primary text-xs font-bold">
+                      <Plus size={11} />
                     </span>
                   </p>
                   <p className="text-muted-foreground mt-0.5 leading-relaxed">
@@ -110,8 +110,7 @@ export function InstallPwaModal({
 
               <div className="rounded-2xl bg-black/30 border border-white/5 p-3 text-center">
                 <p className="text-[11px] text-muted-foreground">
-                  ✨ ¡Listo! Se creará el icono de Imposter en tu pantalla de inicio para jugar al
-                  instante.
+                  Se creará el icono de Imposter en tu pantalla de inicio para jugar al instante.
                 </p>
               </div>
             </div>
@@ -121,7 +120,7 @@ export function InstallPwaModal({
                 <div className="space-y-3 text-center">
                   <div className="rounded-2xl bg-primary/10 border border-primary/30 p-3.5">
                     <span className="text-xs font-bold text-primary uppercase tracking-wider">
-                      🤖 Android & Navegadores Web
+                      Android & Navegadores Web
                     </span>
                     <p className="text-xs text-foreground/90 mt-1">
                       Instala la app con un solo toque directamente en tu celular:
@@ -145,7 +144,7 @@ export function InstallPwaModal({
                 <div className="space-y-3">
                   <div className="rounded-2xl bg-primary/10 border border-primary/30 p-3 text-center">
                     <span className="text-xs font-bold text-primary uppercase tracking-wider">
-                      🤖 Android (Chrome / Firefox / Edge)
+                      Android (Chrome / Firefox / Edge)
                     </span>
                   </div>
 

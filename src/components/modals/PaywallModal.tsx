@@ -220,11 +220,11 @@ export function PaywallModal({
               {/* Lista de Beneficios */}
               <div className="space-y-2 text-xs">
                 {[
-                  "👥 Salas grandes de 7 hasta 15 jugadores",
-                  "🔥 8 Categorías PRO (Cine, Deportes, Geek, Objetos, Profesiones y más)",
-                  "🔞 Categoría picante Fiesta +18 (60 palabras)",
-                  "🃏 Rol especial El Bufón + ⚡ Eventos Relámpago",
-                  "✨ Creación e importación ilimitada de listas propias",
+                  "Salas grandes de 7 hasta 15 jugadores",
+                  "8 Categorías PRO (Cine, Deportes, Geek, Objetos, Profesiones y más)",
+                  "Categoría picante Fiesta +18 (60 palabras)",
+                  "Rol especial El Bufón y Eventos Relámpago",
+                  "Creación e importación ilimitada de listas propias",
                 ].map((perk, idx) => (
                   <div
                     key={idx}
@@ -303,7 +303,7 @@ export function PaywallModal({
                           <div>
                             <div className="flex items-center gap-1.5">
                               <span className="font-display text-sm tracking-wide text-amber-300">
-                                👑 EDICIÓN FUNDADOR
+                                EDICIÓN FUNDADOR
                               </span>
                               <span className="rounded-full bg-amber-400/30 px-1.5 py-0.2 text-[8px] font-bold text-amber-200">
                                 Vitalicio
@@ -455,7 +455,7 @@ export function PaywallModal({
                       : "text-muted-foreground hover:text-white"
                   }`}
                 >
-                  🇻🇪 Pago Móvil
+                  Pago Móvil
                 </button>
                 <button
                   type="button"
@@ -469,7 +469,7 @@ export function PaywallModal({
                       : "text-muted-foreground hover:text-white"
                   }`}
                 >
-                  🟡 Binance
+                  Binance Pay
                 </button>
                 <button
                   type="button"
@@ -483,7 +483,7 @@ export function PaywallModal({
                       : "text-muted-foreground hover:text-white"
                   }`}
                 >
-                  💳 Tarjeta
+                  Tarjeta / Whop
                 </button>
               </div>
 
@@ -649,7 +649,7 @@ export function PaywallModal({
                       ) : (
                         <>
                           <Send size={13} />
-                          <span>🚀 Ya Transferí, Activar mi Pase PRO</span>
+                          <span>Confirmar Pago y Activar mi Pase PRO</span>
                         </>
                       )}
                     </button>
@@ -661,7 +661,7 @@ export function PaywallModal({
                 <div className="rounded-2xl bg-black/40 border border-yellow-500/30 p-3.5 space-y-3">
                   <div className="flex items-center justify-between border-b border-white/10 pb-2">
                     <span className="text-xs font-bold text-yellow-300 flex items-center gap-1.5">
-                      🟡 Binance Pay (USDT)
+                      Binance Pay (USDT)
                     </span>
                     <span className="text-[10px] text-muted-foreground">Instantáneo</span>
                   </div>
@@ -764,7 +764,7 @@ export function PaywallModal({
                       ) : (
                         <>
                           <Send size={13} />
-                          <span>🚀 Ya Transferí, Activar mi Pase PRO</span>
+                          <span>Confirmar Pago y Activar mi Pase PRO</span>
                         </>
                       )}
                     </button>

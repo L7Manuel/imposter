@@ -3,13 +3,19 @@
  *
  * Cero archivos MP3 externos. Sonidos sintetizados en tiempo real por el oscilador
  * del dispositivo para latencia 0ms, ahorro de ancho de banda y soporte offline.
+ * Calibrado acústicamente para altavoces móviles de teléfonos y tablets.
  */
 
 let audioContextInstance: AudioContext | null = null;
+let iosUnlocked = false;
 
+/**
+ * Despierta y desbloquea el canal de audio del navegador en iOS y Android.
+ */
 export function unlockAudio(): AudioContext | null {
   try {
     if (typeof window === "undefined") return null;
+
     if (!audioContextInstance) {
       const AudioCtx =
         window.AudioContext ??
@@ -18,9 +24,27 @@ export function unlockAudio(): AudioContext | null {
         audioContextInstance = new AudioCtx();
       }
     }
-    if (audioContextInstance && audioContextInstance.state === "suspended") {
-      void audioContextInstance.resume();
+
+    if (audioContextInstance) {
+      if (audioContextInstance.state === "suspended") {
+        void audioContextInstance.resume();
+      }
+
+      // Desbloqueo forzado de hardware en iOS/Android reproduciendo 1 muestra silenciosa
+      if (!iosUnlocked) {
+        try {
+          const buffer = audioContextInstance.createBuffer(1, 1, 22050);
+          const source = audioContextInstance.createBufferSource();
+          source.buffer = buffer;
+          source.connect(audioContextInstance.destination);
+          source.start(0);
+          iosUnlocked = true;
+        } catch {
+          /* ignore */
+        }
+      }
     }
+
     return audioContextInstance;
   } catch {
     return null;
@@ -47,11 +71,15 @@ export function playBeep(duration: number, freq: number, soundEnabled: boolean) 
   }
 }
 
+/**
+ * Clic Arcade Táctil ("Pop" nítido y satisfactorio para botones).
+ * Diseñado con envolvente de 70ms y frecuencias de 720Hz a 260Hz para alta presencia en altavoces móviles.
+ */
 export function playPop(soundEnabled: boolean, haptic: boolean = true) {
-  // Micropulso háptico de 10ms en Android para sensación de switch arcade
+  // Micropulso háptico de 12ms en Android
   if (haptic && typeof navigator !== "undefined" && navigator.vibrate) {
     try {
-      navigator.vibrate(10);
+      navigator.vibrate(12);
     } catch {
       /* ignore */
     }
@@ -63,29 +91,29 @@ export function playPop(soundEnabled: boolean, haptic: boolean = true) {
     if (!ctx) return;
     const now = ctx.currentTime;
 
-    // 1. Capa Mecánica Transitoria (Chasquido de switch arcade de 12ms)
+    // 1. Capa Mecánica Transitoria (Chasquido inicial agradable de 720Hz a 340Hz)
     const oscClick = ctx.createOscillator();
     const gainClick = ctx.createGain();
     oscClick.type = "sine";
-    oscClick.frequency.setValueAtTime(2400, now);
-    oscClick.frequency.exponentialRampToValueAtTime(800, now + 0.012);
-    gainClick.gain.setValueAtTime(0.35, now);
-    gainClick.gain.exponentialRampToValueAtTime(0.001, now + 0.014);
+    oscClick.frequency.setValueAtTime(720, now);
+    oscClick.frequency.exponentialRampToValueAtTime(340, now + 0.035);
+    gainClick.gain.setValueAtTime(0.38, now);
+    gainClick.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
     oscClick.connect(gainClick).connect(ctx.destination);
     oscClick.start(now);
-    oscClick.stop(now + 0.015);
+    oscClick.stop(now + 0.045);
 
-    // 2. Capa de Resonancia Cálida (Cuerpo acústico táctil de 55ms)
+    // 2. Capa de Cuerpo Táctil Cálido (260Hz a 130Hz durante 65ms)
     const oscBody = ctx.createOscillator();
     const gainBody = ctx.createGain();
     oscBody.type = "triangle";
-    oscBody.frequency.setValueAtTime(360, now);
-    oscBody.frequency.exponentialRampToValueAtTime(130, now + 0.055);
-    gainBody.gain.setValueAtTime(0.42, now);
-    gainBody.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    oscBody.frequency.setValueAtTime(260, now);
+    oscBody.frequency.exponentialRampToValueAtTime(130, now + 0.065);
+    gainBody.gain.setValueAtTime(0.32, now);
+    gainBody.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
     oscBody.connect(gainBody).connect(ctx.destination);
     oscBody.start(now);
-    oscBody.stop(now + 0.06);
+    oscBody.stop(now + 0.075);
   } catch {
     /* ignore */
   }
@@ -111,10 +139,10 @@ export function startScanSound(soundEnabled: boolean) {
     scanOsc = ctx.createOscillator();
     scanGain = ctx.createGain();
     scanOsc.type = "sawtooth";
-    scanOsc.frequency.setValueAtTime(140, now);
-    scanOsc.frequency.exponentialRampToValueAtTime(320, now + 0.5);
-    scanGain.gain.setValueAtTime(0.06, now);
-    scanGain.gain.linearRampToValueAtTime(0.16, now + 0.3);
+    scanOsc.frequency.setValueAtTime(180, now);
+    scanOsc.frequency.exponentialRampToValueAtTime(380, now + 0.5);
+    scanGain.gain.setValueAtTime(0.12, now);
+    scanGain.gain.linearRampToValueAtTime(0.24, now + 0.35);
     scanOsc.connect(scanGain).connect(ctx.destination);
     scanOsc.start(now);
   } catch {
@@ -138,8 +166,8 @@ export function stopScanSound() {
 }
 
 /**
- * Alerta íntima y sutil de suspenso (Acorde oscuro en baja frecuencia).
- * Suena ÚNICAMENTE si eres el Impostor sin alertar a nadie en la mesa.
+ * Alerta íntima y sutil de suspenso (Acorde oscuro en frecuencia audible para celular).
+ * Suena ÚNICAMENTE si eres el Impostor sin delatarte con los demás.
  */
 export function playImpostorReveal(soundEnabled: boolean) {
   if (typeof navigator !== "undefined" && navigator.vibrate) {
@@ -154,13 +182,13 @@ export function playImpostorReveal(soundEnabled: boolean) {
     const ctx = unlockAudio();
     if (!ctx) return;
     const now = ctx.currentTime;
-    [110, 130.81].forEach((freq) => {
+    [145, 175].forEach((freq) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, now);
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.92, now + 0.45);
-      gain.gain.setValueAtTime(0.2, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.9, now + 0.45);
+      gain.gain.setValueAtTime(0.28, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
       osc.connect(gain).connect(ctx.destination);
       osc.start(now);
@@ -172,7 +200,7 @@ export function playImpostorReveal(soundEnabled: boolean) {
 }
 
 /**
- * Impacto dramático de baja frecuencia para la transición al veredicto.
+ * Impacto dramático con presencia real en altavoces de teléfono (160Hz cayendo a 65Hz).
  */
 export function playDramaticImpact(soundEnabled: boolean) {
   if (typeof navigator !== "undefined" && navigator.vibrate) {
@@ -187,23 +215,37 @@ export function playDramaticImpact(soundEnabled: boolean) {
     const ctx = unlockAudio();
     if (!ctx) return;
     const now = ctx.currentTime;
+
+    // Capa de golpe principal
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(95, now);
-    osc.frequency.exponentialRampToValueAtTime(32, now + 0.35);
+    osc.frequency.setValueAtTime(160, now);
+    osc.frequency.exponentialRampToValueAtTime(60, now + 0.35);
     gain.gain.setValueAtTime(0.48, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
     osc.connect(gain).connect(ctx.destination);
     osc.start(now);
     osc.stop(now + 0.38);
+
+    // Armónico triangular superior para presencia acústica en parlante de celular
+    const oscHarmonic = ctx.createOscillator();
+    const gainHarmonic = ctx.createGain();
+    oscHarmonic.type = "triangle";
+    oscHarmonic.frequency.setValueAtTime(240, now);
+    oscHarmonic.frequency.exponentialRampToValueAtTime(90, now + 0.28);
+    gainHarmonic.gain.setValueAtTime(0.25, now);
+    gainHarmonic.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    oscHarmonic.connect(gainHarmonic).connect(ctx.destination);
+    oscHarmonic.start(now);
+    oscHarmonic.stop(now + 0.3);
   } catch {
     /* ignore */
   }
 }
 
 /**
- * Tensión sonora en los últimos 15 segundos del debate (Latido de corazón + Reloj).
+ * Tensión sonora en los últimos 15 segundos del debate (Doble latido "lub-dub" + Reloj).
  */
 export function playDebateTension(
   timeLeft: number,
@@ -215,7 +257,7 @@ export function playDebateTension(
       if (timeLeft <= 5) {
         navigator.vibrate([20, 40, 20]);
       } else {
-        navigator.vibrate(12);
+        navigator.vibrate(15);
       }
     } catch {
       /* ignore */
@@ -227,30 +269,44 @@ export function playDebateTension(
     if (!ctx) return;
     const now = ctx.currentTime;
 
-    // Latido de corazón sutil
-    const oscHeart = ctx.createOscillator();
-    const gainHeart = ctx.createGain();
-    oscHeart.type = "sine";
-    const heartFreq = timeLeft <= 5 ? 85 : 68;
-    oscHeart.frequency.setValueAtTime(heartFreq, now);
-    oscHeart.frequency.exponentialRampToValueAtTime(35, now + 0.08);
-    const heartVol = timeLeft <= 5 ? 0.38 : 0.22;
-    gainHeart.gain.setValueAtTime(heartVol, now);
-    gainHeart.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
-    oscHeart.connect(gainHeart).connect(ctx.destination);
-    oscHeart.start(now);
-    oscHeart.stop(now + 0.09);
+    // Doble latido de corazón ("lub-dub" acústicamente visible en teléfono)
+    const heartBaseFreq = timeLeft <= 5 ? 150 : 130;
+    const heartVol = timeLeft <= 5 ? 0.42 : 0.28;
 
-    // Tic-tac mecánico de reloj
+    // Primer pulso (lub)
+    const oscHeart1 = ctx.createOscillator();
+    const gainHeart1 = ctx.createGain();
+    oscHeart1.type = "sine";
+    oscHeart1.frequency.setValueAtTime(heartBaseFreq, now);
+    oscHeart1.frequency.exponentialRampToValueAtTime(65, now + 0.05);
+    gainHeart1.gain.setValueAtTime(heartVol, now);
+    gainHeart1.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    oscHeart1.connect(gainHeart1).connect(ctx.destination);
+    oscHeart1.start(now);
+    oscHeart1.stop(now + 0.065);
+
+    // Segundo pulso (dub) 80ms después
+    const oscHeart2 = ctx.createOscillator();
+    const gainHeart2 = ctx.createGain();
+    oscHeart2.type = "sine";
+    oscHeart2.frequency.setValueAtTime(heartBaseFreq * 0.9, now + 0.08);
+    oscHeart2.frequency.exponentialRampToValueAtTime(55, now + 0.13);
+    gainHeart2.gain.setValueAtTime(heartVol * 0.85, now + 0.08);
+    gainHeart2.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    oscHeart2.connect(gainHeart2).connect(ctx.destination);
+    oscHeart2.start(now + 0.08);
+    oscHeart2.stop(now + 0.145);
+
+    // Tic-tac mecánico de reloj en altas frecuencias
     const oscTick = ctx.createOscillator();
     const gainTick = ctx.createGain();
     oscTick.type = "triangle";
-    oscTick.frequency.setValueAtTime(timeLeft <= 5 ? 1600 : 1200, now + 0.04);
-    gainTick.gain.setValueAtTime(timeLeft <= 5 ? 0.28 : 0.15, now + 0.04);
-    gainTick.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    oscTick.frequency.setValueAtTime(timeLeft <= 5 ? 1600 : 1250, now + 0.16);
+    gainTick.gain.setValueAtTime(timeLeft <= 5 ? 0.32 : 0.18, now + 0.16);
+    gainTick.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
     oscTick.connect(gainTick).connect(ctx.destination);
-    oscTick.start(now + 0.04);
-    oscTick.stop(now + 0.07);
+    oscTick.start(now + 0.16);
+    oscTick.stop(now + 0.21);
   } catch {
     /* ignore */
   }

@@ -68,7 +68,7 @@ export function PhaseResult({
                 <Sparkles size={20} className="text-primary animate-bounce" />
               </>
             ) : roundWinner === "jester" ? (
-              <span className="text-3xl animate-bounce">🃏</span>
+              <Sparkles size={32} className="text-purple-300 animate-bounce" />
             ) : (
               <ShieldAlert size={28} className="text-destructive animate-pulse" />
             )}
@@ -113,7 +113,7 @@ export function PhaseResult({
         </div>
         {jesterIndex !== null && (
           <div className="mt-3 pt-2.5 border-t border-white/15 text-xs">
-            <span className="opacity-85">🃏 El Bufón era: </span>
+            <span className="opacity-85">El Bufón era: </span>
             <strong className="font-display tracking-wide">{getPlayerName(jesterIndex)}</strong>
           </div>
         )}
@@ -146,7 +146,7 @@ export function PhaseResult({
       {/* Next Actions */}
       <div className="flex w-full max-w-xs flex-col gap-2.5">
         <button className={`${btnPrimary} w-full py-3.5`} onClick={startRound}>
-          Otra ronda ({category === "Aleatoria" ? "🎲 Aleatoria" : category})
+          Otra ronda ({category === "Aleatoria" ? "Aleatoria" : category})
         </button>
         <div className="flex w-full gap-2.5">
           <button

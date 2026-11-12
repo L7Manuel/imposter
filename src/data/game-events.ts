@@ -6,37 +6,37 @@ export interface RoundEvent {
 
 export const ROUND_EVENTS: RoundEvent[] = [
   {
-    icon: "🤫",
+    icon: "",
     title: "Ronda de Mímica",
     description:
       "En la primera vuelta está prohibido hablar: cada jugador debe dar su pista solo con gestos.",
   },
   {
-    icon: "✌️",
+    icon: "",
     title: "Doble Pista",
     description:
       "Cada jugador debe decir exactamente 2 palabras seguidas en su turno en lugar de una.",
   },
   {
-    icon: "👉",
+    icon: "",
     title: "Interrogatorio Cruzado",
     description:
       "No hay orden en círculo: quien termina su pista señala directamente quién habla después.",
   },
   {
-    icon: "😐",
+    icon: "",
     title: "Rostro de Póker",
     description:
       "Prohibido reírse al dar tu pista. Quien se ría recibe automáticamente sospecha del grupo.",
   },
   {
-    icon: "⚡",
+    icon: "",
     title: "Pista Relámpago",
     description:
       "Nadie puede tardar más de 3 segundos pensando su palabra cuando le toca el turno.",
   },
   {
-    icon: "🚫",
+    icon: "",
     title: "Inicial Prohibida",
     description:
       "Está prohibido decir pistas que empiecen con la misma letra inicial de la palabra secreta.",

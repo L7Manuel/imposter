@@ -78,7 +78,7 @@ export function AdultPinModal({
 
         {Date.now() < pinLockoutUntil ? (
           <p className="text-xs font-semibold text-rose-400 animate-pulse">
-            🛡️ Bloqueo de seguridad: Demasiados intentos fallidos. Espera 60 segundos.
+            Bloqueo de seguridad: Demasiados intentos fallidos. Espera 60 segundos.
           </p>
         ) : pinError ? (
           <p className="text-xs font-semibold text-destructive animate-pulse">

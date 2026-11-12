@@ -1,5 +1,5 @@
 import React from "react";
-import { Sun } from "lucide-react";
+import { Sun, Zap } from "lucide-react";
 
 export interface PhaseDiscussProps {
   minutes: number;
@@ -137,7 +137,7 @@ export function PhaseDiscuss({
       {activeEvent && (
         <div className="w-full max-w-xs rounded-2xl bg-accent/15 border border-accent/40 p-3.5 text-left shadow-lg animate-in fade-in duration-200">
           <div className="flex items-center gap-2 text-accent font-bold text-xs uppercase tracking-wider">
-            <span className="text-base">{activeEvent.icon}</span>
+            <Zap size={14} className="text-accent shrink-0" />
             <span>Evento Relámpago: {activeEvent.title}</span>
           </div>
           <p className="mt-1 text-xs text-foreground/90 leading-relaxed">

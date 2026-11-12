@@ -13,6 +13,9 @@ import {
   Flame,
   Unlock,
   Lock,
+  Zap,
+  Sparkles,
+  Users,
 } from "lucide-react";
 import { DEFAULT_CATEGORIES, ADULT_CATEGORY, ADULT_WORDS, PRO_CATEGORIES } from "@/data/categories";
 import { CategoryIcon } from "@/components/CategoryIcon";
@@ -312,7 +315,7 @@ export function PhaseSetup({
                     : "bg-orange-500/15 text-orange-300 border-orange-500/40 shadow-sm"
                 }`}
               >
-                <span>{accompliceMode ? "🤝" : "🌪️"}</span>
+                {accompliceMode ? <Users size={13} /> : <Shuffle size={13} />}
                 <span className="truncate">{accompliceMode ? "Cómplices" : "Modo Caos"}</span>
               </button>
 
@@ -333,7 +336,7 @@ export function PhaseSetup({
                     : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-foreground"
                 }`}
               >
-                <span>⚡</span>
+                <Zap size={13} className="text-amber-400" />
                 <span className="truncate">Eventos</span>
                 {!hasPro && <Crown size={11} className="text-amber-400 shrink-0" />}
               </button>
@@ -355,7 +358,7 @@ export function PhaseSetup({
                     : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-foreground"
                 }`}
               >
-                <span>🃏</span>
+                <Sparkles size={13} className="text-purple-300" />
                 <span className="truncate">Bufón</span>
                 {!hasPro && <Crown size={11} className="text-amber-400 shrink-0" />}
               </button>
@@ -363,10 +366,10 @@ export function PhaseSetup({
 
             <p className="text-[10px] text-muted-foreground text-center leading-tight">
               {accompliceMode
-                ? "🤝 Los impostores se conocen entre sí"
-                : "🌪️ Caos: los impostores no saben quién es su aliado"}
-              {randomEventsEnabled && hasPro ? " · ⚡ Con retos por ronda" : ""}
-              {jesterEnabled && hasPro ? " · 🃏 Bufón infiltrado" : ""}
+                ? "Los impostores se conocen entre sí"
+                : "Modo Caos: los impostores no saben quién es su aliado"}
+              {randomEventsEnabled && hasPro ? " · Con retos por ronda" : ""}
+              {jesterEnabled && hasPro ? " · Bufón infiltrado" : ""}
             </p>
           </div>
 
@@ -568,7 +571,7 @@ export function PhaseSetup({
               <div className="flex flex-col items-start text-left leading-tight">
                 <span className="font-display text-lg tracking-wider">JUGAR</span>
                 <span className="text-[10px] font-bold opacity-80 max-w-[130px] truncate">
-                  {category === "Aleatoria" ? "🎲 Aleatoria" : category}
+                  {category === "Aleatoria" ? "Aleatoria" : category}
                 </span>
               </div>
             </button>

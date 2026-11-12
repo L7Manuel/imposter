@@ -226,7 +226,7 @@ export function SettingsModal({
                       className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-xs border border-white/10"
                     >
                       <div>
-                        <span className="font-semibold text-foreground">✨ {catName}</span>
+                        <span className="font-semibold text-foreground">{catName}</span>
                         <span className="ml-2 text-[10px] text-muted-foreground">
                           ({wordsList.length} palabras)
                         </span>
@@ -408,7 +408,7 @@ export function SettingsModal({
                 Instalar en Pantalla de Inicio
               </span>
               <span className="rounded-lg bg-primary/15 text-primary border border-primary/30 px-2 py-0.5 text-[10px] font-bold">
-                {isStandalone ? "✅ Instalada" : "📲 Instalar"}
+                {isStandalone ? "Instalada" : "Instalar"}
               </span>
             </button>
 
@@ -443,13 +443,13 @@ export function SettingsModal({
                   }}
                   className="w-full text-center text-[11px] font-semibold text-amber-400/90 hover:text-amber-300 transition cursor-pointer"
                 >
-                  👑 ¿Tienes un código VIP o Clave CEO? Canjear aquí
+                  ¿Tienes un código VIP o Clave CEO? Canjear aquí
                 </button>
                 {isProUnlocked && (
                   <div className="space-y-1.5">
                     {proExpiresAt && (
                       <p className="text-center text-[10px] font-semibold text-amber-300/90">
-                        ⏳ Pase Tester PRO (48h) — restan{" "}
+                        Pase Tester PRO (48h) — restan{" "}
                         {Math.max(1, Math.ceil((proExpiresAt - Date.now()) / (1000 * 60 * 60)))}h
                       </p>
                     )}
@@ -458,7 +458,7 @@ export function SettingsModal({
                       onClick={deactivateProAndCeo}
                       className="w-full rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 py-1.5 text-center text-[11px] font-semibold text-rose-300 transition cursor-pointer"
                     >
-                      🔒 Desactivar Pase PRO (Volver a versión Normal Gratis)
+                      Desactivar Pase PRO (Volver a versión Normal Gratis)
                     </button>
                   </div>
                 )}

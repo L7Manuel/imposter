@@ -16,6 +16,7 @@ export default defineConfig({
   vite: {
     plugins: [
       VitePWA({
+        outDir: ".output/public",
         strategies: "generateSW",
         registerType: "autoUpdate",
         injectRegister: null,
@@ -23,13 +24,26 @@ export default defineConfig({
         filename: "sw.js",
         devOptions: { enabled: false },
         workbox: {
+          globDirectory: ".output/public",
           globPatterns: ["**/*.{js,css,html,png,ico,svg,woff2,webmanifest,json}"],
-          navigateFallback: "/index.html",
-          navigateFallbackDenylist: [/^\/api/, /^\/~oauth/],
+          globIgnores: ["**/node_modules/**/*", "sw.js", "workbox-*.js"],
+          navigateFallback: null,
           cleanupOutdatedCaches: true,
           offlineGoogleAnalytics: false,
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
           runtimeCaching: [
+            {
+              urlPattern: ({ request }) => request.mode === "navigate",
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "pages",
+                networkTimeoutSeconds: 3,
+                expiration: {
+                  maxEntries: 20,
+                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 días
+                },
+              },
+            },
             {
               urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
               handler: "CacheFirst",
@@ -71,30 +85,6 @@ export default defineConfig({
                 expiration: {
                   maxEntries: 20,
                   maxAgeSeconds: 60 * 60 * 24 * 365, // 1 año
-                },
-              },
-            },
-            {
-              urlPattern: ({ request }) => request.mode === "navigate",
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "pages",
-                networkTimeoutSeconds: 10,
-                expiration: {
-                  maxEntries: 20,
-                  maxAgeSeconds: 60 * 60 * 24, // 24 horas
-                },
-              },
-            },
-            {
-              urlPattern: /\/api\/.*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "api",
-                networkTimeoutSeconds: 10,
-                expiration: {
-                  maxEntries: 50,
-                  maxAgeSeconds: 60 * 60, // 1 hora
                 },
               },
             },

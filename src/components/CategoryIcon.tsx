@@ -47,7 +47,6 @@ export function CategoryIcon({
     case "Países y Maravillas":
       return <Globe2 size={size} className={className} />;
     case "Fiesta +18":
-    case "🔞 Fiesta +18":
       return <Flame size={size} className={`text-rose-400 ${className}`} />;
     default:
       return <Package size={size} className={className} />;

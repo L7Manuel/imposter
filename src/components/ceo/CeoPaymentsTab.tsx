@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { RefreshCw, CheckCircle2, DollarSign, Bell } from "lucide-react";
+import { RefreshCw, CheckCircle2, DollarSign, Bell, Coins, CreditCard } from "lucide-react";
 import { reviewPaymentServerFn, savePaymentConfigServerFn } from "@/lib/coupon-server";
 import { PaymentConfig, PendingPayment, DEFAULT_PAYMENT_CONFIG } from "@/lib/payment-config";
 import { STORAGE_KEYS } from "@/lib/security";
@@ -179,7 +179,9 @@ export function CeoPaymentsTab({
       <div className="rounded-2xl glass-panel p-5 border border-white/10 space-y-4">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex items-center gap-2">
-            <span className="text-base">🇻🇪</span>
+            <span className="rounded bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
+              VES
+            </span>
             <div>
               <h4 className="font-display text-sm text-foreground">PAGO MÓVIL (BOLÍVARES)</h4>
               <p className="text-[11px] text-muted-foreground">
@@ -286,7 +288,7 @@ export function CeoPaymentsTab({
       <div className="rounded-2xl glass-panel p-5 border border-white/10 space-y-4">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex items-center gap-2">
-            <span className="text-base">🟡</span>
+            <Coins size={16} className="text-amber-400" />
             <div>
               <h4 className="font-display text-sm text-foreground">BINANCE PAY (USDT / CRIPTO)</h4>
               <p className="text-[11px] text-muted-foreground">
@@ -342,7 +344,7 @@ export function CeoPaymentsTab({
       <div className="rounded-2xl glass-panel p-5 border border-white/10 space-y-4">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex items-center gap-2">
-            <span className="text-base">💳</span>
+            <CreditCard size={16} className="text-blue-400" />
             <div>
               <h4 className="font-display text-sm text-foreground">
                 PASARELA INTERNACIONAL (TARJETAS / STRIPE / WHOP)
@@ -381,7 +383,7 @@ export function CeoPaymentsTab({
       <div className="rounded-2xl glass-panel p-5 border border-indigo-500/30 bg-indigo-500/[0.03] space-y-4">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex items-center gap-2">
-            <span className="text-base">📢</span>
+            <Bell size={16} className="text-indigo-400" />
             <div>
               <h4 className="font-display text-sm text-foreground">
                 ALERTAS EN TIEMPO REAL A DISCORD
@@ -399,7 +401,7 @@ export function CeoPaymentsTab({
                 : "bg-white/5 text-muted-foreground border-white/10"
             }`}
           >
-            {hasDiscordWebhook ? "🟢 Conectado" : "⚪ Sin Configurar"}
+            {hasDiscordWebhook ? "Conectado" : "Sin Configurar"}
           </span>
         </div>
 

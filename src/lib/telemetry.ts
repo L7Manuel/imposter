@@ -1,68 +1,82 @@
-/**
- * Módulo de Telemetría y Detección de Dispositivos — Imposter
- *
- * Captura eventos de juego de forma asíncrona ("fire-and-forget")
- * para alimentar las métricas globales del CEO y enviar alertas en vivo a Discord (#metricas-imposter).
- *
- * Cero invasivo: no guarda nombres reales, IPs personales ni datos privados.
- */
+import { reportTelemetryServerFn, TelemetryEventPayload } from "./telemetry-server";
+import { STORAGE_KEYS } from "./security";
 
-import { reportTelemetryServerFn } from "@/lib/telemetry-server";
-
-export interface TelemetryEventPayload {
-  type: "round_start" | "round_finish" | "pwa_install" | "paywall_view" | "payment_submit";
-  category?: string;
-  playerCount?: number;
-  impostorCount?: number;
-  isAdult?: boolean;
-  isJester?: boolean;
-  roundsCount?: number;
-  winner?: "innocents" | "impostors" | "jester";
-  device?: string;
-  planId?: string;
-}
+const OFFLINE_QUEUE_KEY = "impostor_offline_telemetry_queue";
 
 /**
- * Detecta el entorno de ejecución del usuario (Android, iOS o Desktop).
+ * Detecta de forma anónima y no invasiva el tipo de dispositivo del jugador.
  */
 export function detectUserDevice(): string {
-  if (typeof window === "undefined" || !navigator) return "Desconocido";
-  const ua = navigator.userAgent.toLowerCase();
+  if (typeof window === "undefined") return "Desconocido";
+  const ua = navigator.userAgent || "";
+  const isAndroid = /android/i.test(ua);
+  const isIos = /iphone|ipad|ipod/i.test(ua);
+  const isWindows = /windows/i.test(ua);
+  const isMac = /macintosh|mac os x/i.test(ua) && !isIos;
+  const isLinux = /linux/i.test(ua) && !isAndroid;
 
-  if (/android/.test(ua)) {
-    return "Android";
-  }
-  if (/iphone|ipad|ipod/.test(ua)) {
-    return "iPhone / iOS";
-  }
-  if (/windows/.test(ua)) {
-    return "Windows PC";
-  }
-  if (/macintosh|mac os x/.test(ua)) {
-    return "Mac";
-  }
-  if (/linux/.test(ua)) {
-    return "Linux";
-  }
-  return "Móvil / Web";
+  if (isAndroid) return "Android";
+  if (isIos) return "iPhone (iOS)";
+  if (isWindows) return "Windows PC";
+  if (isMac) return "Mac";
+  if (isLinux) return "Linux";
+  return "Navegador Web";
 }
 
 /**
- * Comprueba si el dispositivo actual pertenece al CEO para no contaminar métricas reales.
+ * Comprueba si el dispositivo actual tiene token de CEO guardado.
  */
 export function isCeoDevice(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    const token = localStorage.getItem("impostor-ceo-token");
-    return Boolean(token && token.length > 20);
+    return Boolean(localStorage.getItem(STORAGE_KEYS.CEO_TOKEN));
   } catch {
     return false;
   }
 }
 
 /**
+ * Guarda un evento en cola local cuando el dispositivo no tiene conexión a internet.
+ */
+function enqueueOfflineEvent(payload: TelemetryEventPayload) {
+  try {
+    if (typeof window === "undefined") return;
+    const existing = JSON.parse(
+      localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]",
+    ) as TelemetryEventPayload[];
+    existing.push(payload);
+    if (existing.length > 50) existing.shift();
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(existing));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Sincroniza automáticamente los eventos encolados cuando el dispositivo recupera internet.
+ */
+export function initOfflineTelemetrySync() {
+  if (typeof window === "undefined") return;
+  window.addEventListener("online", async () => {
+    try {
+      const queue = JSON.parse(
+        localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]",
+      ) as TelemetryEventPayload[];
+      if (queue.length === 0) return;
+      localStorage.removeItem(OFFLINE_QUEUE_KEY);
+      for (const item of queue) {
+        await reportTelemetryServerFn({ data: item }).catch(() => {});
+      }
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
+/**
  * Envía un evento de telemetría sin bloquear la interfaz de usuario ni ralentizar el juego.
  * Doble canal: Servidor TanStack (Cloudflare) + Radar de Atlas en Render Cloud.
+ * Con soporte offline: si no hay conexión, se encola localmente y se transmite al volver a tener red.
  */
 export async function trackGameEvent(
   payload: Omit<TelemetryEventPayload, "device">,
@@ -71,11 +85,16 @@ export async function trackGameEvent(
   const device = customDevice || detectUserDevice();
   const fullPayload: TelemetryEventPayload = { ...payload, device };
 
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    enqueueOfflineEvent(fullPayload);
+    return;
+  }
+
   // 1. Envío al servidor backend de la app (para actualizar el Panel CEO global)
   try {
     await reportTelemetryServerFn({ data: fullPayload });
   } catch {
-    /* ignore */
+    enqueueOfflineEvent(fullPayload);
   }
 
   // 2. Envío directo al radar de Atlas en Render Cloud (para alertas inmediatas a #metricas-imposter)

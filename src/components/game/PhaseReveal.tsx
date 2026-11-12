@@ -159,7 +159,7 @@ export function PhaseReveal({
           </div>
         ) : turn === jesterIndex ? (
           <div className="flex flex-col items-center gap-1.5 animate-in zoom-in-90 duration-150">
-            <span className="text-4xl animate-bounce">🃏</span>
+            <Sparkles size={40} className="text-purple-300 animate-bounce" />
             <span className="font-display text-3xl tracking-wider">¡ERES EL BUFÓN!</span>
             <span className="text-xs uppercase tracking-widest opacity-85 font-bold">
               Palabra: {word}

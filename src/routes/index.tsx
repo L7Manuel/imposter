@@ -40,7 +40,7 @@ import {
   consumeGuestPassServerFn,
   getFounderGuestPassesServerFn,
 } from "@/lib/coupon-server";
-import { trackGameEvent } from "@/lib/telemetry";
+import { trackGameEvent, initOfflineTelemetrySync } from "@/lib/telemetry";
 import {
   PaymentConfig,
   DEFAULT_PAYMENT_CONFIG,
@@ -480,7 +480,7 @@ function Game() {
           setShowProModal(true);
           setProCodeFeedback({
             type: "success",
-            text: `🎟️ ¡Invitación VIP detectada (${cleanCode})! Pulsa "Activar" abajo para comenzar tus 48h gratis.`,
+            text: `¡Invitación VIP detectada (${cleanCode})! Pulsa "Activar" abajo para comenzar tus 48h gratis.`,
           });
         }
       }
@@ -516,8 +516,9 @@ function Game() {
     };
   }, []);
 
-  // Suscripción al ciclo de vida PWA (Instalación nativa en Android e iOS)
+  // Suscripción al ciclo de vida PWA (Instalación nativa en Android e iOS) y cola offline
   useEffect(() => {
+    initOfflineTelemetrySync();
     const cleanup = initPwaInstallPrompt();
     const updatePwaState = () => {
       setIsStandalone(isStandaloneMode());
@@ -599,11 +600,11 @@ function Game() {
   const handleSubmitPaymentProof = async (method: "Pago Móvil" | "Binance Pay") => {
     playPop(soundEnabled);
     if (!payProofName.trim()) {
-      setPayProofFeedback("⚠️ Por favor ingresa tu nombre o apodo.");
+      setPayProofFeedback("Por favor ingresa tu nombre o apodo.");
       return;
     }
     if (!payProofRef.trim()) {
-      setPayProofFeedback("⚠️ Por favor ingresa el número o referencia del pago.");
+      setPayProofFeedback("Por favor ingresa el número o referencia del pago.");
       return;
     }
 
@@ -650,10 +651,10 @@ function Game() {
           /* ignore */
         }
       } else {
-        setPayProofFeedback("⚠️ Error al registrar el pago en el servidor.");
+        setPayProofFeedback("Error al registrar el pago en el servidor.");
       }
     } catch {
-      setPayProofFeedback("⚠️ Error de conexión. Intenta de nuevo.");
+      setPayProofFeedback("Error de conexión. Intenta de nuevo.");
     } finally {
       setPayProofSubmitting(false);
     }
@@ -691,7 +692,7 @@ function Game() {
           setShowProModal(false);
         } else if (res?.status === "rejected") {
           setPayProofFeedback(
-            "⚠️ Tu referencia no pudo ser confirmada. Por favor verifica tus datos.",
+            "Tu referencia no pudo ser confirmada. Por favor verifica tus datos.",
           );
           try {
             localStorage.removeItem("impostor-active-payment-tracker");
@@ -854,7 +855,7 @@ function Game() {
           playBeep(0.3, 200, soundEnabled);
           setProCodeFeedback({
             type: "error",
-            text: "⚠️ Este cupón ya fue canjeado por otro jugador (1 solo uso).",
+            text: "Este cupón ya fue canjeado por otro jugador (1 solo uso).",
           });
           return;
         }
