@@ -380,9 +380,11 @@ function Game() {
       localStorage.removeItem("impostor-ceo-admin");
 
       // Verificación criptográfica anti-manipulación (Doble Hash SHA-256 + Expiración 48h firmada)
+      let isUnlockedOnMount = false;
       const storedProToken = localStorage.getItem(STORAGE_KEYS.PRO_TOKEN);
       const storedProExpires = localStorage.getItem(STORAGE_KEYS.PRO_EXPIRES);
       if (isValidStoredToken(storedProToken, "pro", storedProExpires)) {
+        isUnlockedOnMount = true;
         setIsProUnlocked(true);
         const parsedExp = parseSignedExpiry(storedProToken, storedProExpires);
         if (parsedExp) setProExpiresAt(parsedExp);
@@ -393,15 +395,44 @@ function Game() {
 
       const storedCeoToken = localStorage.getItem(STORAGE_KEYS.CEO_TOKEN);
       if (isValidStoredToken(storedCeoToken, "ceo")) {
+        isUnlockedOnMount = true;
         setIsCeoAdmin(true);
         setIsProUnlocked(true);
       } else if (storedCeoToken) {
         localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
+        document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=; path=/; max-age=0; SameSite=Lax`;
       }
 
-      const storedFounder = localStorage.getItem(STORAGE_KEYS.FOUNDER_NUMBER);
-      if (storedFounder && Number.isFinite(Number(storedFounder))) {
-        setFounderNumber(Number(storedFounder));
+      if (isUnlockedOnMount) {
+        const storedFounder = localStorage.getItem(STORAGE_KEYS.FOUNDER_NUMBER);
+        if (storedFounder && Number.isFinite(Number(storedFounder))) {
+          setFounderNumber(Number(storedFounder));
+        }
+      } else {
+        // Si no tiene PRO ni CEO válido al iniciar, purgar cualquier estado PRO residual
+        setIsProUnlocked(false);
+        setIsCeoAdmin(false);
+        setFounderNumber(null);
+        setRandomEventsEnabled(false);
+        setJesterEnabled(false);
+        setIsAdultUnlocked(false);
+        localStorage.removeItem(STORAGE_KEYS.FOUNDER_NUMBER);
+        localStorage.removeItem(STORAGE_KEYS.FOUNDER_CODE);
+        localStorage.removeItem("impostor-adult-unlocked");
+        localStorage.setItem("impostor-events", "false");
+        localStorage.setItem("impostor-jester", "false");
+        if (savedNames) {
+          try {
+            const parsedNames = JSON.parse(savedNames);
+            if (Array.isArray(parsedNames) && parsedNames.length > FREE_MAX_PLAYERS) {
+              const clamped = parsedNames.slice(0, FREE_MAX_PLAYERS);
+              setNames(clamped);
+              localStorage.setItem("impostor-names", JSON.stringify(clamped));
+            }
+          } catch {
+            /* ignore */
+          }
+        }
       }
 
       const savedAnalytics = localStorage.getItem("impostor-analytics");
@@ -433,10 +464,6 @@ function Game() {
         .then((res) => {
           if (res?.config) {
             setPaymentConfig(res.config);
-            setEditingPaymentConfig(res.config);
-            setTasaInput(
-              String(res.config.pagoMovil.tasaBs || DEFAULT_PAYMENT_CONFIG.pagoMovil.tasaBs),
-            );
             try {
               localStorage.setItem("impostor-payment-config", JSON.stringify(res.config));
             } catch {
@@ -756,7 +783,7 @@ function Game() {
       setFailedCodeAttempts(0);
       localStorage.setItem(STORAGE_KEYS.CEO_TOKEN, token);
       document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=${token}; path=/; max-age=31536000; SameSite=Lax`;
-      localStorage.setItem(STORAGE_KEYS.PRO_TOKEN, token);
+      localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
       localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
 
       setProCodeFeedback({
@@ -768,6 +795,33 @@ function Game() {
         window.location.href = "/ceo";
       }, 1000);
     } else if (role === "founder" && token && meta?.founderNumber) {
+      try {
+        const res = await consumeFounderServerFn({
+          data: { code: proCodeInput.trim().toUpperCase() },
+        });
+        if (res && !res.success && res.error?.includes("ya fue")) {
+          if (couponIdHash) {
+            const nextUsed = Array.from(new Set([...usedCoupons, couponIdHash]));
+            setUsedCoupons(nextUsed);
+            localStorage.setItem(STORAGE_KEYS.USED_COUPONS, JSON.stringify(nextUsed));
+          }
+          playBeep(0.3, 200, soundEnabled);
+          setProCodeFeedback({
+            type: "error",
+            text: "Este Pase Fundador ya fue reclamado anteriormente.",
+          });
+          return;
+        }
+      } catch {
+        /* fallback offline */
+      }
+
+      if (couponIdHash) {
+        const nextUsed = Array.from(new Set([...usedCoupons, couponIdHash]));
+        setUsedCoupons(nextUsed);
+        localStorage.setItem(STORAGE_KEYS.USED_COUPONS, JSON.stringify(nextUsed));
+      }
+
       playFanfare(true, soundEnabled);
       setIsProUnlocked(true);
       setCeoSimulateFree(false);
@@ -778,8 +832,6 @@ function Game() {
       localStorage.setItem(STORAGE_KEYS.FOUNDER_NUMBER, String(meta.founderNumber));
       localStorage.setItem(STORAGE_KEYS.FOUNDER_CODE, proCodeInput.trim().toUpperCase());
       localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
-
-      consumeFounderServerFn({ data: { code: proCodeInput.trim().toUpperCase() } }).catch(() => {});
 
       setProCodeFeedback({
         type: "success",
@@ -792,6 +844,33 @@ function Game() {
         setShowFounderPassesModal(true);
       }, 1500);
     } else if (role === "guest_pass" && token && meta?.founderNumber) {
+      try {
+        const res = await consumeGuestPassServerFn({
+          data: { passCode: proCodeInput.trim().toUpperCase() },
+        });
+        if (res && !res.success) {
+          if (couponIdHash) {
+            const nextUsed = Array.from(new Set([...usedCoupons, couponIdHash]));
+            setUsedCoupons(nextUsed);
+            localStorage.setItem(STORAGE_KEYS.USED_COUPONS, JSON.stringify(nextUsed));
+          }
+          playBeep(0.3, 200, soundEnabled);
+          setProCodeFeedback({
+            type: "error",
+            text: res.error || "Este Pase de Invitado ya fue utilizado.",
+          });
+          return;
+        }
+      } catch {
+        /* fallback offline */
+      }
+
+      if (couponIdHash) {
+        const nextUsed = Array.from(new Set([...usedCoupons, couponIdHash]));
+        setUsedCoupons(nextUsed);
+        localStorage.setItem(STORAGE_KEYS.USED_COUPONS, JSON.stringify(nextUsed));
+      }
+
       playFanfare(true, soundEnabled);
       setIsProUnlocked(true);
       setCeoSimulateFree(false);
@@ -802,10 +881,6 @@ function Game() {
       setFailedCodeAttempts(0);
       localStorage.setItem(STORAGE_KEYS.PRO_TOKEN, token);
       localStorage.setItem(STORAGE_KEYS.PRO_EXPIRES, signedExpiry);
-
-      consumeGuestPassServerFn({ data: { passCode: proCodeInput.trim().toUpperCase() } }).catch(
-        () => {},
-      );
 
       setProCodeFeedback({
         type: "success",
@@ -845,7 +920,6 @@ function Game() {
             couponIdHash,
             action: "consume",
             testerName: assignedName,
-            ...(discordWebhookInput ? { discordWebhookUrl: discordWebhookInput } : {}),
           },
         });
         if (!serverCheck.allowed) {
@@ -870,19 +944,6 @@ function Game() {
       const now = Date.now();
       const expiresAt = now + TESTER_COUPON_DURATION_MS;
       const signedExpiry = createSignedExpiry(token, expiresAt);
-
-      setServerCouponsMap((prev) => {
-        const updated = {
-          ...prev,
-          [couponIdHash]: { activatedAt: now, couponNumber: couponIdx },
-        };
-        try {
-          localStorage.setItem("impostor-coupon-registry", JSON.stringify(updated));
-        } catch {
-          /* ignore */
-        }
-        return updated;
-      });
 
       playFanfare(true, soundEnabled);
       setIsProUnlocked(true);
@@ -1016,12 +1077,17 @@ function Game() {
     setIsProUnlocked(false);
     setCeoSimulateFree(false);
     setProExpiresAt(null);
-    setCeoDecryptedCodes([]);
+    setFounderNumber(null);
+    setIsAdultUnlocked(false);
     localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
+    localStorage.removeItem(STORAGE_KEYS.FOUNDER_NUMBER);
+    localStorage.removeItem(STORAGE_KEYS.FOUNDER_CODE);
     localStorage.removeItem("impostor-pro-unlocked");
     localStorage.removeItem("impostor-ceo-admin");
+    localStorage.removeItem("impostor-adult-unlocked");
+    document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=; path=/; max-age=0; SameSite=Lax`;
     if (PRO_CATEGORIES.includes(category) || category === ADULT_CATEGORY || category in custom) {
       setCategory("Aleatoria");
     }
@@ -1049,6 +1115,7 @@ function Game() {
     setIsProUnlocked(false);
     setCeoSimulateFree(false);
     setProExpiresAt(null);
+    setFounderNumber(null);
     setWakeLockEnabled(true);
     setCategory("Aleatoria");
     setScores({ innocents: 0, impostors: 0 });
@@ -1066,8 +1133,11 @@ function Game() {
     localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
+    localStorage.removeItem(STORAGE_KEYS.FOUNDER_NUMBER);
+    localStorage.removeItem(STORAGE_KEYS.FOUNDER_CODE);
     localStorage.removeItem("impostor-pro-unlocked");
     localStorage.removeItem("impostor-ceo-admin");
+    document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=; path=/; max-age=0; SameSite=Lax`;
     playPop(true);
   };
 

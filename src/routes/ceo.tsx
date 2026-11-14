@@ -248,6 +248,26 @@ export function CeoPage() {
   const handleLogout = () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
+      localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
+      localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
+      localStorage.removeItem(STORAGE_KEYS.FOUNDER_NUMBER);
+      localStorage.removeItem(STORAGE_KEYS.FOUNDER_CODE);
+      localStorage.removeItem("impostor-pro-unlocked");
+      localStorage.removeItem("impostor-ceo-admin");
+      localStorage.removeItem("impostor-adult-unlocked");
+      localStorage.setItem("impostor-events", "false");
+      localStorage.setItem("impostor-jester", "false");
+      try {
+        const savedNames = localStorage.getItem("impostor-names");
+        if (savedNames) {
+          const parsedNames = JSON.parse(savedNames);
+          if (Array.isArray(parsedNames) && parsedNames.length > 6) {
+            localStorage.setItem("impostor-names", JSON.stringify(parsedNames.slice(0, 6)));
+          }
+        }
+      } catch {
+        /* ignore */
+      }
       document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=; path=/; max-age=0; SameSite=Lax`;
     }
     setToken(null);

@@ -456,7 +456,7 @@ export function isValidStoredToken(
   if (expectedRole === "ceo") {
     return CEO_VERIFY_HASHES.has(verifyHash);
   }
-  if (CEO_VERIFY_HASHES.has(verifyHash) || verifyHash === VIP_UNLIMITED_HASH) {
+  if (verifyHash === VIP_UNLIMITED_HASH) {
     return true;
   }
   if (isPurchaseApprovedToken(token)) {

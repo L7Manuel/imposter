@@ -1,5 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
-import { TelemetryEventPayload } from "@/lib/telemetry";
+
+export interface TelemetryEventPayload {
+  eventId?: string;
+  type: "round_start" | "round_finish" | "pwa_install" | "paywall_view";
+  category?: string;
+  playerCount?: number;
+  impostorCount?: number;
+  isAdult?: boolean;
+  isJester?: boolean;
+  winner?: "innocents" | "impostors" | "jester";
+  planId?: string;
+  device?: string;
+}
 
 export interface GlobalMetrics {
   totalRoundsStarted: number;
@@ -25,6 +37,7 @@ export interface GlobalMetrics {
 declare global {
   var __imposterGlobalMetrics: GlobalMetrics | undefined;
   var __imposterTelemetryRateLimitMap: Map<string, number[]> | undefined;
+  var __imposterProcessedTelemetryIds: Set<string> | undefined;
 }
 
 function getGlobalMetricsStore(): GlobalMetrics {
@@ -45,6 +58,22 @@ function getGlobalMetricsStore(): GlobalMetrics {
     };
   }
   return globalThis.__imposterGlobalMetrics;
+}
+
+function isDuplicateEvent(eventId?: string): boolean {
+  if (!eventId) return false;
+  if (!globalThis.__imposterProcessedTelemetryIds) {
+    globalThis.__imposterProcessedTelemetryIds = new Set();
+  }
+  if (globalThis.__imposterProcessedTelemetryIds.has(eventId)) {
+    return true;
+  }
+  globalThis.__imposterProcessedTelemetryIds.add(eventId);
+  if (globalThis.__imposterProcessedTelemetryIds.size > 500) {
+    const first = globalThis.__imposterProcessedTelemetryIds.values().next().value;
+    if (first) globalThis.__imposterProcessedTelemetryIds.delete(first);
+  }
+  return false;
 }
 
 function isTelemetryRateLimited(clientKey: string): boolean {
@@ -68,10 +97,7 @@ async function sendDiscordMetricsEmbed(embed: {
   color: number;
   fields: Array<{ name: string; value: string; inline?: boolean }>;
 }): Promise<void> {
-  const webhookUrl =
-    globalThis.__imposterDiscordWebhookUrl ||
-    process.env.DISCORD_METRICS_WEBHOOK_URL ||
-    process.env.DISCORD_WEBHOOK_URL;
+  const webhookUrl = process.env.DISCORD_METRICS_WEBHOOK_URL;
 
   if (!webhookUrl || !webhookUrl.startsWith("https://discord.com/api/webhooks/")) {
     return;
@@ -82,7 +108,7 @@ async function sendDiscordMetricsEmbed(embed: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        username: "Imposter Metrics Radar 🛰️",
+        username: "Imposter Metrics Radar",
         avatar_url: "https://imposter.manu-07games.workers.dev/icon-512.png",
         embeds: [
           {
@@ -102,6 +128,10 @@ async function sendDiscordMetricsEmbed(embed: {
 export const reportTelemetryServerFn = createServerFn({ method: "POST" })
   .validator((input: TelemetryEventPayload) => input)
   .handler(async ({ data }) => {
+    if (isDuplicateEvent(data.eventId)) {
+      return { ok: true, deduplicated: true };
+    }
+
     const store = getGlobalMetricsStore();
     const deviceStr = data.device || "Desconocido";
 
@@ -119,93 +149,112 @@ export const reportTelemetryServerFn = createServerFn({ method: "POST" })
 
     store.lastUpdated = Date.now();
 
+    // 1. Reenvío primario único hacia Atlas en Render Cloud (server-to-server)
+    let atlasDelivered = false;
+    try {
+      const atlasRes = await fetch("https://atlas-bot-2xh4.onrender.com/api/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(4000),
+      });
+      atlasDelivered = atlasRes.ok;
+    } catch {
+      atlasDelivered = false;
+    }
+
     if (data.type === "round_start") {
       store.totalRoundsStarted++;
       const cat = data.category || "Aleatoria";
       store.categoryCounts[cat] = (store.categoryCounts[cat] || 0) + 1;
 
-      const summary = `🎮 Partida iniciada (${data.playerCount ?? 4} jug.) en ${cat}`;
+      const summary = `Partida iniciada (${data.playerCount ?? 4} jug.) en ${cat}`;
       store.recentEvents.unshift({
-        id: Math.random().toString(36).slice(2, 9),
+        id: data.eventId || Math.random().toString(36).slice(2, 9),
         type: "round_start",
         timestamp: Date.now(),
         summary,
         device: deviceStr,
       });
 
-      // Notificar a Discord #metricas-imposter
-      const fields = [
-        { name: "📁 Categoría", value: `**${cat}**`, inline: true },
-        { name: "👥 Jugadores", value: `${data.playerCount ?? 4} personas`, inline: true },
-        { name: "🕵️‍♂️ Impostores", value: `${data.impostorCount ?? 1}`, inline: true },
-        { name: "📱 Dispositivo", value: `**${deviceStr}**`, inline: true },
-      ];
-      if (data.isAdult) {
-        fields.push({ name: "🔞 Modo Picante", value: "Activado (+18)", inline: true });
-      }
-      if (data.isJester) {
-        fields.push({ name: "🃏 El Bufón", value: "En juego", inline: true });
-      }
+      if (!atlasDelivered) {
+        const fields = [
+          { name: "Categoría", value: `**${cat}**`, inline: true },
+          { name: "Jugadores", value: `${data.playerCount ?? 4} personas`, inline: true },
+          { name: "Impostores", value: `${data.impostorCount ?? 1}`, inline: true },
+          { name: "Dispositivo", value: `**${deviceStr}**`, inline: true },
+        ];
+        if (data.isAdult) {
+          fields.push({ name: "Modo Picante", value: "Activado (+18)", inline: true });
+        }
+        if (data.isJester) {
+          fields.push({ name: "El Bufón", value: "En juego", inline: true });
+        }
 
-      await sendDiscordMetricsEmbed({
-        title: "🎮 ¡Nueva Partida Iniciada!",
-        description: `Se acaba de iniciar una partida presencial en **${deviceStr}**.`,
-        color: 0x3b82f6, // Azul
-        fields,
-      });
+        await sendDiscordMetricsEmbed({
+          title: "¡Nueva Partida Iniciada!",
+          description: `Se acaba de iniciar una partida presencial en **${deviceStr}**.`,
+          color: 0x3b82f6,
+          fields,
+        });
+      }
     } else if (data.type === "round_finish") {
       store.totalRoundsCompleted++;
       const winnerName =
         data.winner === "innocents"
-          ? "Inocentes 😇"
+          ? "Inocentes"
           : data.winner === "jester"
-            ? "El Bufón 🃏"
-            : "Impostores 🕵️‍♂️";
+            ? "El Bufón"
+            : "Impostores";
 
-      const summary = `🏆 Partida finalizada: Ganaron ${winnerName}`;
+      const summary = `Partida finalizada: Ganaron ${winnerName}`;
       store.recentEvents.unshift({
-        id: Math.random().toString(36).slice(2, 9),
+        id: data.eventId || Math.random().toString(36).slice(2, 9),
         type: "round_finish",
         timestamp: Date.now(),
         summary,
         device: deviceStr,
       });
 
-      await sendDiscordMetricsEmbed({
-        title: "🏆 Partida Concluida con Éxito",
-        description: `La partida terminó. Ganador: **${winnerName}**.`,
-        color: 0x10b981, // Verde
-        fields: [
-          { name: "👑 Ganador", value: winnerName, inline: true },
-          { name: "📁 Categoría", value: data.category || "Aleatoria", inline: true },
-          { name: "📱 Dispositivo", value: deviceStr, inline: true },
-        ],
-      });
+      if (!atlasDelivered) {
+        await sendDiscordMetricsEmbed({
+          title: "Partida Concluida con Éxito",
+          description: `La partida terminó. Ganador: **${winnerName}**.`,
+          color: 0x10b981,
+          fields: [
+            { name: "Ganador", value: winnerName, inline: true },
+            { name: "Categoría", value: data.category || "Aleatoria", inline: true },
+            { name: "Dispositivo", value: deviceStr, inline: true },
+          ],
+        });
+      }
     } else if (data.type === "pwa_install") {
       store.totalPwaInstalls++;
-      const summary = `📱 PWA instalada en pantalla de inicio`;
+      const summary = `PWA instalada en pantalla de inicio`;
       store.recentEvents.unshift({
-        id: Math.random().toString(36).slice(2, 9),
+        id: data.eventId || Math.random().toString(36).slice(2, 9),
         type: "pwa_install",
         timestamp: Date.now(),
         summary,
         device: deviceStr,
       });
 
-      await sendDiscordMetricsEmbed({
-        title: "📱 ¡Nueva Instalación de PWA!",
-        description: `Un jugador añadió **Imposter** a la pantalla de inicio de su teléfono.`,
-        color: 0x8b5cf6, // Púrpura
-        fields: [
-          { name: "📱 Dispositivo", value: `**${deviceStr}**`, inline: true },
-          { name: "⭐ Estado", value: "Acceso Rápido Nativo", inline: true },
-        ],
-      });
+      if (!atlasDelivered) {
+        await sendDiscordMetricsEmbed({
+          title: "¡Nueva Instalación de PWA!",
+          description: `Un jugador añadió **Imposter** a la pantalla de inicio de su teléfono.`,
+          color: 0x8b5cf6,
+          fields: [
+            { name: "Dispositivo", value: `**${deviceStr}**`, inline: true },
+            { name: "Estado", value: "Acceso Rápido Nativo", inline: true },
+          ],
+        });
+      }
     } else if (data.type === "paywall_view") {
       store.totalPaywallViews++;
-      const summary = `🎟️ Modal Party Pass abierto (${data.planId || "general"})`;
+      const summary = `Modal Party Pass abierto (${data.planId || "general"})`;
       store.recentEvents.unshift({
-        id: Math.random().toString(36).slice(2, 9),
+        id: data.eventId || Math.random().toString(36).slice(2, 9),
         type: "paywall_view",
         timestamp: Date.now(),
         summary,
@@ -215,18 +264,6 @@ export const reportTelemetryServerFn = createServerFn({ method: "POST" })
 
     if (store.recentEvents.length > 20) {
       store.recentEvents = store.recentEvents.slice(0, 20);
-    }
-
-    // Reenvío de alta fidelidad hacia Atlas en Render Cloud (server-to-server)
-    try {
-      await fetch("https://atlas-bot-2xh4.onrender.com/api/telemetry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        signal: AbortSignal.timeout(3000),
-      });
-    } catch {
-      /* ignore */
     }
 
     return { ok: true };

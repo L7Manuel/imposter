@@ -1,6 +1,8 @@
 import { reportTelemetryServerFn, TelemetryEventPayload } from "./telemetry-server";
 import { STORAGE_KEYS } from "./security";
 
+export type { TelemetryEventPayload };
+
 const OFFLINE_QUEUE_KEY = "impostor_offline_telemetry_queue";
 
 /**
@@ -74,40 +76,26 @@ export function initOfflineTelemetrySync() {
 }
 
 /**
- * Envía un evento de telemetría sin bloquear la interfaz de usuario ni ralentizar el juego.
- * Doble canal: Servidor TanStack (Cloudflare) + Radar de Atlas en Render Cloud.
- * Con soporte offline: si no hay conexión, se encola localmente y se transmite al volver a tener red.
+ * Envía un evento de telemetría por un único canal seguro (Server-to-Server hacia Atlas),
+ * con deduplicación por eventId y cola offline si el jugador no tiene internet.
  */
 export async function trackGameEvent(
   payload: Omit<TelemetryEventPayload, "device">,
   customDevice?: string,
 ): Promise<void> {
   const device = customDevice || detectUserDevice();
-  const fullPayload: TelemetryEventPayload = { ...payload, device };
+  const eventId =
+    payload.eventId || `${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+  const fullPayload: TelemetryEventPayload = { ...payload, device, eventId };
 
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     enqueueOfflineEvent(fullPayload);
     return;
   }
 
-  // 1. Envío al servidor backend de la app (para actualizar el Panel CEO global)
   try {
     await reportTelemetryServerFn({ data: fullPayload });
   } catch {
     enqueueOfflineEvent(fullPayload);
-  }
-
-  // 2. Envío directo al radar de Atlas en Render Cloud (para alertas inmediatas a #metricas-imposter)
-  try {
-    fetch("https://atlas-bot-2xh4.onrender.com/api/telemetry", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(fullPayload),
-      mode: "cors",
-    }).catch(() => {
-      /* ignore */
-    });
-  } catch {
-    /* ignore */
   }
 }
