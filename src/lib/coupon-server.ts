@@ -39,6 +39,20 @@ export interface FounderRecord {
   }>;
 }
 
+interface CloudflareKVNamespace {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string): Promise<void>;
+}
+
+interface ImposterVaultSnapshot {
+  founders?: FounderRecord[];
+  payments?: PendingPayment[];
+  paymentConfig?: PaymentConfig;
+  usedCoupons?: Array<[string, { activatedAt: number; couponNumber: number }]>;
+  activeCeoVerifyHash?: string | null;
+  ceoKeyMeta?: { keyVersion: number; rotatedAt: number | null; maskedPreview: string };
+}
+
 declare global {
   var __imposterUsedCouponsMap:
     Map<string, { activatedAt: number; couponNumber: number }> | undefined;
@@ -50,6 +64,115 @@ declare global {
   var __imposterActiveCeoVerifyHash: string | null | undefined;
   var __imposterCeoKeyMeta:
     { keyVersion: number; rotatedAt: number | null; maskedPreview: string } | undefined;
+  var __imposterVaultHydrated: boolean | undefined;
+  var __imposterVaultLastSyncAt: number | undefined;
+  var __env__: { IMPOSTER_KV?: CloudflareKVNamespace } | undefined;
+}
+
+const VAULT_STORAGE_KEY = "imposter:vault:v2";
+
+function getCloudflareKv(): CloudflareKVNamespace | null {
+  return globalThis.__env__?.IMPOSTER_KV ?? null;
+}
+
+async function ensureVaultHydrated(): Promise<void> {
+  if (typeof process !== "undefined" && process.env?.VITEST) return;
+  const now = Date.now();
+  if (
+    globalThis.__imposterVaultHydrated &&
+    now - (globalThis.__imposterVaultLastSyncAt ?? 0) < 2000
+  ) {
+    return;
+  }
+  globalThis.__imposterVaultHydrated = true;
+  globalThis.__imposterVaultLastSyncAt = now;
+
+  try {
+    let rawJson: string | null = null;
+    const kv = getCloudflareKv();
+    if (kv) {
+      rawJson = await kv.get(VAULT_STORAGE_KEY);
+    } else if (typeof process !== "undefined" && process.versions?.node) {
+      try {
+        const fs = await import("node:fs/promises");
+        rawJson = await fs.readFile(".wrangler/imposter-vault-dev.json", "utf8");
+      } catch {
+        rawJson = null;
+      }
+    }
+
+    if (!rawJson) return;
+    const parsed = JSON.parse(rawJson) as ImposterVaultSnapshot;
+
+    if (Array.isArray(parsed.founders)) {
+      const fMap = getServerFoundersMap();
+      fMap.clear();
+      for (const f of parsed.founders) {
+        if (f && typeof f.number === "number") {
+          fMap.set(f.number, f);
+        }
+      }
+    }
+    if (Array.isArray(parsed.payments)) {
+      const pMap = getServerPaymentsMap();
+      pMap.clear();
+      for (const p of parsed.payments) {
+        if (p && typeof p.id === "string") {
+          pMap.set(p.id, p);
+        }
+      }
+    }
+    if (parsed.paymentConfig) {
+      globalThis.__imposterPaymentConfig = sanitizePaymentConfig(parsed.paymentConfig);
+    }
+    if (Array.isArray(parsed.usedCoupons)) {
+      const cMap = getServerCouponMap();
+      cMap.clear();
+      for (const [hash, meta] of parsed.usedCoupons) {
+        if (typeof hash === "string" && meta && typeof meta.activatedAt === "number") {
+          cMap.set(hash, meta);
+        }
+      }
+    }
+    if (parsed.activeCeoVerifyHash !== undefined) {
+      globalThis.__imposterActiveCeoVerifyHash = parsed.activeCeoVerifyHash;
+    }
+    if (parsed.ceoKeyMeta) {
+      globalThis.__imposterCeoKeyMeta = parsed.ceoKeyMeta;
+    }
+  } catch {
+    /* ignore hydration errors */
+  }
+}
+
+async function persistVaultSnapshot(): Promise<void> {
+  if (typeof process !== "undefined" && process.env?.VITEST) return;
+  try {
+    globalThis.__imposterVaultLastSyncAt = Date.now();
+    const snapshot: ImposterVaultSnapshot = {
+      founders: Array.from(getServerFoundersMap().values()),
+      payments: Array.from(getServerPaymentsMap().values()),
+      paymentConfig: globalThis.__imposterPaymentConfig || DEFAULT_PAYMENT_CONFIG,
+      usedCoupons: Array.from(getServerCouponMap().entries()),
+      activeCeoVerifyHash: globalThis.__imposterActiveCeoVerifyHash ?? null,
+      ceoKeyMeta: getCeoKeyMeta(),
+    };
+    const serialized = JSON.stringify(snapshot);
+    const kv = getCloudflareKv();
+    if (kv) {
+      await kv.put(VAULT_STORAGE_KEY, serialized);
+    } else if (typeof process !== "undefined" && process.versions?.node) {
+      try {
+        const fs = await import("node:fs/promises");
+        await fs.mkdir(".wrangler", { recursive: true });
+        await fs.writeFile(".wrangler/imposter-vault-dev.json", serialized, "utf8");
+      } catch {
+        /* ignore local dev write error */
+      }
+    }
+  } catch {
+    /* ignore persistence error */
+  }
 }
 
 function getCeoKeyMeta() {
@@ -166,37 +289,71 @@ export async function sendDiscordWebhookEmbed({
 }
 
 /**
- * Valida la sesión del CEO en el servidor leyendo la cookie segura (Zero-Flicker SSR).
- * Permite que el servidor renderice directamente la consola del CEO sin parpadeos de carga ni error 418.
+ * Valida la sesión del CEO en el servidor leyendo la cookie segura o el token cliente (Zero-Flicker SSR & SPA).
+ * Permite precargar fundadores, pagos y configuración desde el primer frame sin parpadeos.
  */
-export const checkCeoAuthServerFn = createServerFn({ method: "GET" }).handler(async () => {
-  const meta = getCeoKeyMeta();
-  const activeVerifyHash = globalThis.__imposterActiveCeoVerifyHash ?? null;
-  try {
-    const { getCookie } = await import("@tanstack/react-start/server");
-    const token = getCookie(STORAGE_KEYS.CEO_TOKEN);
-    if (token && isServerCeoTokenValid(token)) {
-      return {
-        isAuthorized: true,
-        token,
-        activeVerifyHash,
-        keyVersion: meta.keyVersion,
-        rotatedAt: meta.rotatedAt,
-        maskedPreview: meta.maskedPreview,
-      };
+export const checkCeoAuthServerFn = createServerFn({ method: "GET" })
+  .validator((input?: { clientToken?: string }) => input)
+  .handler(async ({ data }) => {
+    await ensureVaultHydrated();
+    const meta = getCeoKeyMeta();
+    const activeVerifyHash = globalThis.__imposterActiveCeoVerifyHash ?? null;
+    try {
+      let token = data?.clientToken || null;
+      if (!token) {
+        const srv = await import("@tanstack/react-start/server");
+        if (typeof srv.getCookie === "function") {
+          token = srv.getCookie(STORAGE_KEYS.CEO_TOKEN) || null;
+        }
+        if (!token && typeof srv.getRequestHeader === "function") {
+          const cookieHeader = srv.getRequestHeader("cookie") || "";
+          const match = cookieHeader.match(
+            new RegExp(`(?:^|;\\s*)${STORAGE_KEYS.CEO_TOKEN}=([^;]+)`),
+          );
+          if (match?.[1]) {
+            token = decodeURIComponent(match[1]);
+          }
+        }
+      }
+      if (token && isServerCeoTokenValid(token)) {
+        const initialFounders = Array.from(getServerFoundersMap().values()).sort(
+          (a, b) => a.number - b.number,
+        );
+        const initialPayments = Array.from(getServerPaymentsMap().values())
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, 40);
+        const initialPaymentConfig = globalThis.__imposterPaymentConfig || DEFAULT_PAYMENT_CONFIG;
+        const initialUsedCoupons = Array.from(getServerCouponMap().keys());
+
+        return {
+          isAuthorized: true,
+          token,
+          activeVerifyHash,
+          keyVersion: meta.keyVersion,
+          rotatedAt: meta.rotatedAt,
+          maskedPreview: meta.maskedPreview,
+          initialFounders,
+          initialPayments,
+          initialPaymentConfig,
+          initialUsedCoupons,
+        };
+      }
+    } catch {
+      /* fallback to unauthenticated */
     }
-  } catch {
-    /* fallback to unauthenticated */
-  }
-  return {
-    isAuthorized: false,
-    token: null,
-    activeVerifyHash,
-    keyVersion: meta.keyVersion,
-    rotatedAt: meta.rotatedAt,
-    maskedPreview: meta.maskedPreview,
-  };
-});
+    return {
+      isAuthorized: false,
+      token: null,
+      activeVerifyHash,
+      keyVersion: meta.keyVersion,
+      rotatedAt: meta.rotatedAt,
+      maskedPreview: meta.maskedPreview,
+      initialFounders: [] as FounderRecord[],
+      initialPayments: [] as PendingPayment[],
+      initialPaymentConfig: DEFAULT_PAYMENT_CONFIG,
+      initialUsedCoupons: [] as string[],
+    };
+  });
 
 /**
  * Verifica el inicio de sesión del CEO contra la llave maestra activa en el servidor
@@ -205,6 +362,7 @@ export const checkCeoAuthServerFn = createServerFn({ method: "GET" }).handler(as
 export const verifyCeoLoginServerFn = createServerFn({ method: "POST" })
   .validator((input: { rawKey: string }) => input)
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     const normalized = normalizeAccessCodeInput(data.rawKey);
     const activeHash = globalThis.__imposterActiveCeoVerifyHash ?? null;
     const meta = getCeoKeyMeta();
@@ -232,6 +390,7 @@ export const verifyCeoLoginServerFn = createServerFn({ method: "POST" })
       const rotatedHash = computeTokenVerifyHash(rotatedToken);
       globalThis.__imposterActiveCeoVerifyHash = rotatedHash;
       meta.maskedPreview = `${dynCheck.normalized.slice(0, 6)}••••${dynCheck.normalized.slice(-2)}`;
+      await persistVaultSnapshot();
       return {
         authorized: true,
         token: rotatedToken,
@@ -267,6 +426,7 @@ export const rotateCeoMasterKeyServerFn = createServerFn({ method: "POST" })
       input,
   )
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     if (!isServerCeoTokenValid(data.currentCeoToken)) {
       return { success: false, error: "Sesión CEO actual no válida o expirada." };
     }
@@ -278,6 +438,7 @@ export const rotateCeoMasterKeyServerFn = createServerFn({ method: "POST" })
       meta.keyVersion += 1;
       meta.rotatedAt = Date.now();
       meta.maskedPreview = "CEO-IMPOSTER-2026 (Fábrica)";
+      await persistVaultSnapshot();
 
       const factoryCheck = verifyAccessCode("CEO-IMPOSTER-2026", []);
       await sendDiscordWebhookEmbed({
@@ -321,6 +482,7 @@ export const rotateCeoMasterKeyServerFn = createServerFn({ method: "POST" })
       rawNewKey.length >= 8
         ? `${rawNewKey.slice(0, 6)}••••${rawNewKey.slice(-2)}`
         : `${rawNewKey.slice(0, 3)}•••`;
+    await persistVaultSnapshot();
 
     await sendDiscordWebhookEmbed({
       webhookUrl: "",
@@ -360,6 +522,7 @@ export const consumeSingleUseCouponServerFn = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     const store = getServerCouponMap();
 
     if (data.discordWebhookUrl) {
@@ -372,6 +535,7 @@ export const consumeSingleUseCouponServerFn = createServerFn({ method: "POST" })
       } else {
         store.clear();
       }
+      await persistVaultSnapshot();
       return { allowed: true, totalUsed: store.size };
     }
 
@@ -390,6 +554,7 @@ export const consumeSingleUseCouponServerFn = createServerFn({ method: "POST" })
     const now = Date.now();
 
     store.set(hash, { activatedAt: now, couponNumber });
+    await persistVaultSnapshot();
 
     // Notificar a Discord si hay webhook configurado
     await sendDiscordWebhookEmbed({
@@ -413,6 +578,7 @@ export const consumeSingleUseCouponServerFn = createServerFn({ method: "POST" })
 export const getCouponServerStatusServerFn = createServerFn({ method: "POST" })
   .validator((input?: { defaultWebhook?: string | undefined } | undefined) => input ?? {})
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     const store = getServerCouponMap();
     if (data?.defaultWebhook && !globalThis.__imposterDiscordWebhookUrl) {
       globalThis.__imposterDiscordWebhookUrl = data.defaultWebhook;
@@ -461,6 +627,7 @@ export const testDiscordWebhookServerFn = createServerFn({ method: "POST" })
 export const getPaymentConfigServerFn = createServerFn({ method: "POST" })
   .validator((input?: { defaultFallback?: PaymentConfig | undefined } | undefined) => input ?? {})
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     if (!globalThis.__imposterPaymentConfig) {
       if (data?.defaultFallback) {
         globalThis.__imposterPaymentConfig = sanitizePaymentConfig(data.defaultFallback);
@@ -479,6 +646,7 @@ export const savePaymentConfigServerFn = createServerFn({ method: "POST" })
       input,
   )
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, error: "No autorizado. Clave CEO no válida." };
     }
@@ -494,6 +662,8 @@ export const savePaymentConfigServerFn = createServerFn({ method: "POST" })
     if (webhookToUse) {
       globalThis.__imposterDiscordWebhookUrl = webhookToUse;
     }
+
+    await persistVaultSnapshot();
 
     // Notificar a Discord si hay webhook
     await sendDiscordWebhookEmbed({
@@ -550,6 +720,7 @@ export const submitPaymentProofServerFn = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     // 🛡️ Blindaje Anti-Spam: Rate limiting estricto de envíos de comprobantes (máximo 3 por cada 2 minutos)
     if (!globalThis.__imposterPaymentRateLimitMap) {
       globalThis.__imposterPaymentRateLimitMap = new Map();
@@ -595,6 +766,7 @@ export const submitPaymentProofServerFn = createServerFn({ method: "POST" })
     };
 
     store.set(id, payment);
+    await persistVaultSnapshot();
 
     const isFounder = payment.plan === "founder";
     const planMeta = PARTY_PASS_PLANS[payment.plan as PartyPassPlan];
@@ -666,6 +838,7 @@ export const submitPaymentProofServerFn = createServerFn({ method: "POST" })
 export const checkPaymentStatusServerFn = createServerFn({ method: "POST" })
   .validator((input: { paymentId: string }) => input)
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     const store = getServerPaymentsMap();
     const payment = store.get(data.paymentId);
     if (!payment) {
@@ -676,6 +849,8 @@ export const checkPaymentStatusServerFn = createServerFn({ method: "POST" })
         token: null,
         signedExpiry: null,
         expiresAt: null as number | null,
+        founderNumber: null as number | null,
+        founderCode: null as string | null,
       };
     }
 
@@ -710,12 +885,15 @@ export const checkPaymentStatusServerFn = createServerFn({ method: "POST" })
       token,
       signedExpiry,
       expiresAt,
+      founderNumber: payment.founderNumber ?? null,
+      founderCode: payment.founderCode ?? null,
     };
   });
 
 export const getPendingPaymentsServerFn = createServerFn({ method: "POST" })
   .validator((input: { ceoToken: string }) => input)
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, payments: [] };
     }
@@ -731,6 +909,7 @@ export const reviewPaymentServerFn = createServerFn({ method: "POST" })
     (input: { ceoToken: string; paymentId: string; action: "approve" | "reject" }) => input,
   )
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, error: "No autorizado" };
     }
@@ -749,15 +928,44 @@ export const reviewPaymentServerFn = createServerFn({ method: "POST" })
       payment.approvedAt = Date.now();
 
       if (isFounder) {
+        // Auto-generar y asignar su certificado de Miembro Fundador + 5 Pases de Invitación
+        if (!payment.founderNumber) {
+          const foundersStore = getServerFoundersMap();
+          const existingNumbers = Array.from(foundersStore.keys());
+          const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+          const founderCode = generateFounderCode(nextNumber);
+          const guestPasses = [1, 2, 3, 4, 5].map((idx) => ({
+            passIndex: idx,
+            code: generateGuestPass(nextNumber, idx),
+            redeemedAt: null as number | null,
+          }));
+          const founderRecord: FounderRecord = {
+            number: nextNumber,
+            code: founderCode,
+            name: payment.customerName || `Fundador #${nextNumber}`,
+            issuedAt: Date.now(),
+            redeemedAt: Date.now(),
+            guestPasses,
+          };
+          foundersStore.set(nextNumber, founderRecord);
+          payment.founderNumber = nextNumber;
+          payment.founderCode = founderCode;
+        }
+        await persistVaultSnapshot();
+
         await sendDiscordWebhookEmbed({
           webhookUrl: "",
           title: "👑 ¡PASE FUNDADOR VITALICIO APROBADO! 🌟",
-          description: `El pago de **${payment.customerName}** (Ref: #${payment.reference}) ha sido **APROBADO** por el CEO. Su acceso vitalicio permanente ya está desbloqueado.`,
+          description: `El pago de **${payment.customerName}** (Ref: #${payment.reference}) ha sido **APROBADO** por el CEO. Su acceso vitalicio permanente y sus **5 Pases de Invitación** (Fundador #${payment.founderNumber}) ya se entregaron automáticamente en su dispositivo.`,
           color: 0x10b981,
           fields: [
             { name: "👤 Cliente", value: payment.customerName, inline: true },
             { name: "💵 Monto", value: payment.amountFormatted, inline: true },
-            { name: "👑 Plan", value: "Edición Fundador Vitalicio", inline: true },
+            {
+              name: "👑 Certificado Fundador",
+              value: `#${payment.founderNumber} (\`${payment.founderCode}\`)`,
+              inline: true,
+            },
             {
               name: "💬 Discord Contact",
               value: payment.discordContact
@@ -774,6 +982,7 @@ export const reviewPaymentServerFn = createServerFn({ method: "POST" })
           ],
         });
       } else {
+        await persistVaultSnapshot();
         await sendDiscordWebhookEmbed({
           webhookUrl: "",
           title: "✅ ¡Pago Aprobado por el CEO!",
@@ -792,6 +1001,7 @@ export const reviewPaymentServerFn = createServerFn({ method: "POST" })
       }
     } else {
       payment.status = "rejected";
+      await persistVaultSnapshot();
       await sendDiscordWebhookEmbed({
         webhookUrl: "",
         title: "❌ Pago Rechazado",
@@ -818,6 +1028,7 @@ export const reviewPaymentServerFn = createServerFn({ method: "POST" })
 export const getFoundersDataServerFn = createServerFn({ method: "POST" })
   .validator((input: { ceoToken: string }) => input)
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, founders: [] };
     }
@@ -827,20 +1038,18 @@ export const getFoundersDataServerFn = createServerFn({ method: "POST" })
   });
 
 /**
- * Registra el canje de un Pase Fundador en el servidor y notifica a Discord.
- */
-
-/**
  * Emite un nuevo Pase Fundador correlativo con sus 5 pases de embajador (solo CEO).
  */
 export const issueFounderServerFn = createServerFn({ method: "POST" })
   .validator((input: { ceoToken: string; name?: string }) => input)
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, error: "No autorizado" };
     }
     const store = getServerFoundersMap();
-    const nextNumber = store.size + 1;
+    const existingNumbers = Array.from(store.keys());
+    const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
     const code = generateFounderCode(nextNumber);
     const guestPasses = [1, 2, 3, 4, 5].map((idx) => ({
       passIndex: idx,
@@ -858,6 +1067,7 @@ export const issueFounderServerFn = createServerFn({ method: "POST" })
     };
 
     store.set(nextNumber, founder);
+    await persistVaultSnapshot();
 
     return { success: true, founder };
   });
@@ -871,6 +1081,7 @@ export const manageFounderStatusServerFn = createServerFn({ method: "POST" })
       input,
   )
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, error: "No autorizado" };
     }
@@ -888,6 +1099,7 @@ export const manageFounderStatusServerFn = createServerFn({ method: "POST" })
       founder.redeemedAt = null;
     }
 
+    await persistVaultSnapshot();
     const list = Array.from(store.values()).sort((a, b) => a.number - b.number);
     return { success: true, founders: list };
   });
@@ -898,6 +1110,7 @@ export const manageFounderStatusServerFn = createServerFn({ method: "POST" })
 export const consumeFounderServerFn = createServerFn({ method: "POST" })
   .validator((input: { code: string; founderName?: string }) => input)
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     const check = isValidFounderCode(data.code);
     if (!check.valid || check.number === null) {
       return { success: false, error: "Código de fundador inválido" };
@@ -934,6 +1147,8 @@ export const consumeFounderServerFn = createServerFn({ method: "POST" })
       }
     }
 
+    await persistVaultSnapshot();
+
     await sendDiscordWebhookEmbed({
       webhookUrl: "",
       title: "👑 ¡NUEVO MIEMBRO FUNDADOR VITALICIO ACTIVADO! 🎉",
@@ -961,6 +1176,7 @@ export const consumeFounderServerFn = createServerFn({ method: "POST" })
 export const getFounderGuestPassesServerFn = createServerFn({ method: "POST" })
   .validator((input: { founderNumber: number }) => input)
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     const store = getServerFoundersMap();
     let founder = store.get(data.founderNumber);
     if (!founder) {
@@ -979,6 +1195,7 @@ export const getFounderGuestPassesServerFn = createServerFn({ method: "POST" })
         guestPasses,
       };
       store.set(data.founderNumber, founder);
+      await persistVaultSnapshot();
     }
     return { success: true, guestPasses: founder.guestPasses };
   });
@@ -989,6 +1206,7 @@ export const getFounderGuestPassesServerFn = createServerFn({ method: "POST" })
 export const consumeGuestPassServerFn = createServerFn({ method: "POST" })
   .validator((input: { passCode: string; guestName?: string }) => input)
   .handler(async ({ data }) => {
+    await ensureVaultHydrated();
     const check = isValidGuestPass(data.passCode);
     if (!check.valid || check.founderNumber === null || check.passIndex === null) {
       return { success: false, error: "Pase de invitado inválido" };
@@ -1021,6 +1239,8 @@ export const consumeGuestPassServerFn = createServerFn({ method: "POST" })
       pass.redeemedAt = Date.now();
       pass.redeemedBy = data.guestName?.trim() || "Invitado";
     }
+
+    await persistVaultSnapshot();
 
     const usedCount = founder.guestPasses.filter((p) => p.redeemedAt !== null).length;
 

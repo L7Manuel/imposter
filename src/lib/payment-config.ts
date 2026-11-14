@@ -88,6 +88,8 @@ export interface PendingPayment {
   status: "pending" | "approved" | "rejected";
   approvedAt?: number | undefined;
   discordContact?: string | undefined;
+  founderNumber?: number | undefined;
+  founderCode?: string | undefined;
 }
 
 export interface PaymentConfig {

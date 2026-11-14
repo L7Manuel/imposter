@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState, useMemo } from "react";
 import {
   Volume2,
   VolumeX,
@@ -211,6 +211,7 @@ const btnGhost = `${btn} bg-white/10 hover:bg-white/15 text-foreground border bo
 const btnDanger = `${btn} bg-destructive text-destructive-foreground glow-danger hover:brightness-110 active:brightness-125`;
 
 function Game() {
+  const navigate = useNavigate();
   const [phase, setPhase] = useState<Phase>("setup");
   const [setupStep, setSetupStep] = useState<1 | 2 | 3>(1);
   const [isResolvingResult, setIsResolvingResult] = useState<boolean>(false);
@@ -779,12 +780,20 @@ function Game() {
               setProExpiresAt(null);
               localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
             }
+            if (res.founderNumber && res.founderCode) {
+              setFounderNumber(res.founderNumber);
+              localStorage.setItem(STORAGE_KEYS.FOUNDER_NUMBER, String(res.founderNumber));
+              localStorage.setItem(STORAGE_KEYS.FOUNDER_CODE, res.founderCode);
+            }
             localStorage.removeItem("impostor-active-payment-tracker");
           } catch {
             /* ignore */
           }
           setActivePaymentTracker(null);
           setShowProModal(false);
+          if (res.founderNumber) {
+            setShowFounderPassesModal(true);
+          }
         } else if (res?.status === "rejected") {
           setPayProofFeedback(
             "Tu referencia no pudo ser confirmada. Por favor verifica tus datos.",
@@ -873,14 +882,10 @@ function Game() {
       localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
       localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
 
-      setProCodeFeedback({
-        type: "success",
-        text: "¡Bienvenido CEO! Redirigiendo a tu Centro de Mandos...",
-      });
       setProCodeInput("");
-      setTimeout(() => {
-        window.location.href = "/ceo";
-      }, 1000);
+      setProCodeFeedback(null);
+      setShowProModal(false);
+      void navigate({ to: "/ceo" });
     } else if (role === "founder" && token && meta?.founderNumber) {
       try {
         const res = await consumeFounderServerFn({
@@ -1320,12 +1325,15 @@ function Game() {
     localStorage.setItem("impostor-scores", JSON.stringify(init));
   };
 
-  // Assemble all active categories (including adult words only if unlocked)
-  const allCats: Record<string, string[]> = {
-    ...DEFAULT_CATEGORIES,
-    ...(isAdultUnlocked ? { [ADULT_CATEGORY]: ADULT_WORDS } : {}),
-    ...custom,
-  };
+  // Assemble all active categories (memoized to prevent child re-renders on timer ticks)
+  const allCats: Record<string, string[]> = useMemo(
+    () => ({
+      ...DEFAULT_CATEGORIES,
+      ...(isAdultUnlocked ? { [ADULT_CATEGORY]: ADULT_WORDS } : {}),
+      ...custom,
+    }),
+    [isAdultUnlocked, custom],
+  );
 
   const maxImp = Math.max(1, names.length - 2);
 
@@ -1691,7 +1699,7 @@ function Game() {
             onClick={() => {
               playPop(soundEnabled);
               if (isCeoAdmin) {
-                window.location.href = "/ceo";
+                void navigate({ to: "/ceo" });
               } else {
                 openPaywall();
               }
@@ -1858,188 +1866,202 @@ function Game() {
       )}
 
       {/* MODAL: SALAS ONLINE EN TIEMPO REAL (QR / 4 LETRAS) */}
-      <OnlineRoomModal
-        isOpen={showOnlineRoomModal}
-        onClose={() => setShowOnlineRoomModal(false)}
-        hasPro={hasPro}
-        openPaywall={() => {
-          setShowOnlineRoomModal(false);
-          openPaywall();
-        }}
-        soundEnabled={soundEnabled}
-        playPop={playPop}
-        playFanfare={playFanfare}
-        defaultPlayerName={names[0] || "Jugador 1"}
-        category={category}
-        impostorCount={impostorCount}
-        minutes={minutes}
-        undercoverMode={undercoverMode}
-        jesterEnabled={jesterEnabled}
-        accompliceMode={accompliceMode}
-        initialJoinCode={initialOnlineRoomCode}
-      />
+      {showOnlineRoomModal && (
+        <OnlineRoomModal
+          isOpen={showOnlineRoomModal}
+          onClose={() => setShowOnlineRoomModal(false)}
+          hasPro={hasPro}
+          openPaywall={() => {
+            setShowOnlineRoomModal(false);
+            openPaywall();
+          }}
+          soundEnabled={soundEnabled}
+          playPop={playPop}
+          playFanfare={playFanfare}
+          defaultPlayerName={names[0] || "Jugador 1"}
+          category={category}
+          impostorCount={impostorCount}
+          minutes={minutes}
+          undercoverMode={undercoverMode}
+          jesterEnabled={jesterEnabled}
+          accompliceMode={accompliceMode}
+          initialJoinCode={initialOnlineRoomCode}
+        />
+      )}
 
       {/* MODAL: CENTRO DE CONFIGURACIÓN Y PERSONALIZACIÓN (EXTRAÍDO A COMPONENTE) */}
-      <SettingsModal
-        isOpen={showSettingsModal}
-        onClose={() => {
-          playPop(soundEnabled);
-          setShowSettingsModal(false);
-        }}
-        hasPro={hasPro}
-        custom={custom}
-        saveCustom={saveCustom}
-        category={category}
-        setCategory={setCategory}
-        newCat={newCat}
-        setNewCat={setNewCat}
-        newWords={newWords}
-        setNewWords={setNewWords}
-        handleExportCategories={handleExportCategories}
-        handleImportCategories={handleImportCategories}
-        openPaywall={openPaywall}
-        packStatus={packStatus}
-        isAdultUnlocked={isAdultUnlocked}
-        setIsAdultUnlocked={setIsAdultUnlocked}
-        openPinModal={(mode) => {
-          playPop(soundEnabled);
-          setPinModalMode(mode);
-          setEnteredPin("");
-          setPinError(false);
-          setShowPinHint(false);
-          setShowSettingsModal(false);
-          setShowPinModal(true);
-        }}
-        soundEnabled={soundEnabled}
-        toggleSound={toggleSound}
-        vibrationEnabled={vibrationEnabled}
-        toggleVibration={toggleVibration}
-        wakeLockEnabled={wakeLockEnabled}
-        toggleWakeLock={toggleWakeLock}
-        handleInstallPwa={handleInstallPwa}
-        isStandalone={isStandalone}
-        scores={scores}
-        resetScores={resetScores}
-        resetFactoryDefaults={resetFactoryDefaults}
-        isCeoAdmin={isCeoAdmin}
-        isProUnlocked={isProUnlocked}
-        proExpiresAt={proExpiresAt}
-        deactivateProAndCeo={deactivateProAndCeo}
-        btnPrimary={btnPrimary}
-        btnGhost={btnGhost}
-        playPop={playPop}
-      />
+      {showSettingsModal && (
+        <SettingsModal
+          isOpen={showSettingsModal}
+          onClose={() => {
+            playPop(soundEnabled);
+            setShowSettingsModal(false);
+          }}
+          hasPro={hasPro}
+          custom={custom}
+          saveCustom={saveCustom}
+          category={category}
+          setCategory={setCategory}
+          newCat={newCat}
+          setNewCat={setNewCat}
+          newWords={newWords}
+          setNewWords={setNewWords}
+          handleExportCategories={handleExportCategories}
+          handleImportCategories={handleImportCategories}
+          openPaywall={openPaywall}
+          packStatus={packStatus}
+          isAdultUnlocked={isAdultUnlocked}
+          setIsAdultUnlocked={setIsAdultUnlocked}
+          openPinModal={(mode) => {
+            playPop(soundEnabled);
+            setPinModalMode(mode);
+            setEnteredPin("");
+            setPinError(false);
+            setShowPinHint(false);
+            setShowSettingsModal(false);
+            setShowPinModal(true);
+          }}
+          soundEnabled={soundEnabled}
+          toggleSound={toggleSound}
+          vibrationEnabled={vibrationEnabled}
+          toggleVibration={toggleVibration}
+          wakeLockEnabled={wakeLockEnabled}
+          toggleWakeLock={toggleWakeLock}
+          handleInstallPwa={handleInstallPwa}
+          isStandalone={isStandalone}
+          scores={scores}
+          resetScores={resetScores}
+          resetFactoryDefaults={resetFactoryDefaults}
+          isCeoAdmin={isCeoAdmin}
+          isProUnlocked={isProUnlocked}
+          proExpiresAt={proExpiresAt}
+          deactivateProAndCeo={deactivateProAndCeo}
+          btnPrimary={btnPrimary}
+          btnGhost={btnGhost}
+          playPop={playPop}
+        />
+      )}
 
       {/* MODAL: TUS 5 PASES DE INVITACIÓN (EXTRAÍDO A COMPONENTE) */}
-      <FounderPassesModal
-        isOpen={showFounderPassesModal && founderNumber !== null}
-        onClose={() => setShowFounderPassesModal(false)}
-        founderNumber={founderNumber}
-        founderGuestPasses={founderGuestPasses}
-      />
+      {showFounderPassesModal && founderNumber !== null && (
+        <FounderPassesModal
+          isOpen={showFounderPassesModal}
+          onClose={() => setShowFounderPassesModal(false)}
+          founderNumber={founderNumber}
+          founderGuestPasses={founderGuestPasses}
+        />
+      )}
 
       {/* MODAL: PARTY PASS PRO & ACCESO CEO (EXTRAÍDO A COMPONENTE) */}
-      <PaywallModal
-        isOpen={showProModal}
-        onClose={() => {
-          playPop(soundEnabled);
-          setShowProModal(false);
-          setProModalView("perks");
-        }}
-        soundEnabled={soundEnabled}
-        playPop={playPop}
-        activePaymentTracker={activePaymentTracker}
-        setActivePaymentTracker={setActivePaymentTracker}
-        proModalView={proModalView}
-        setProModalView={setProModalView}
-        selectedPlan={selectedPlan}
-        setSelectedPlan={setSelectedPlan}
-        paymentConfig={paymentConfig}
-        selectedPayMethod={selectedPayMethod}
-        setSelectedPayMethod={setSelectedPayMethod}
-        copiedPayField={copiedPayField}
-        handleCopyPayField={handleCopyPayField}
-        payProofName={payProofName}
-        setPayProofName={setPayProofName}
-        payProofRef={payProofRef}
-        setPayProofRef={setPayProofRef}
-        payProofDiscordContact={payProofDiscordContact}
-        setPayProofDiscordContact={setPayProofDiscordContact}
-        payProofFeedback={payProofFeedback}
-        setPayProofFeedback={setPayProofFeedback}
-        payProofSubmitting={payProofSubmitting}
-        handleSubmitPaymentProof={handleSubmitPaymentProof}
-        proCodeInput={proCodeInput}
-        setProCodeInput={setProCodeInput}
-        handleRedeemCode={handleRedeemCode}
-        proCodeFeedback={proCodeFeedback}
-        freeTrialUsed={freeTrialUsed}
-        onActivateFreeTrial={activateFreeTrialRound}
-      />
+      {showProModal && (
+        <PaywallModal
+          isOpen={showProModal}
+          onClose={() => {
+            playPop(soundEnabled);
+            setShowProModal(false);
+            setProModalView("perks");
+          }}
+          soundEnabled={soundEnabled}
+          playPop={playPop}
+          activePaymentTracker={activePaymentTracker}
+          setActivePaymentTracker={setActivePaymentTracker}
+          proModalView={proModalView}
+          setProModalView={setProModalView}
+          selectedPlan={selectedPlan}
+          setSelectedPlan={setSelectedPlan}
+          paymentConfig={paymentConfig}
+          selectedPayMethod={selectedPayMethod}
+          setSelectedPayMethod={setSelectedPayMethod}
+          copiedPayField={copiedPayField}
+          handleCopyPayField={handleCopyPayField}
+          payProofName={payProofName}
+          setPayProofName={setPayProofName}
+          payProofRef={payProofRef}
+          setPayProofRef={setPayProofRef}
+          payProofDiscordContact={payProofDiscordContact}
+          setPayProofDiscordContact={setPayProofDiscordContact}
+          payProofFeedback={payProofFeedback}
+          setPayProofFeedback={setPayProofFeedback}
+          payProofSubmitting={payProofSubmitting}
+          handleSubmitPaymentProof={handleSubmitPaymentProof}
+          proCodeInput={proCodeInput}
+          setProCodeInput={setProCodeInput}
+          handleRedeemCode={handleRedeemCode}
+          proCodeFeedback={proCodeFeedback}
+          freeTrialUsed={freeTrialUsed}
+          onActivateFreeTrial={activateFreeTrialRound}
+        />
+      )}
 
       {/* MODAL: COMPARTIR JUEGO Y CÓDIGO QR (EXTRAÍDO A COMPONENTE) */}
-      <ShareModal
-        isOpen={showShareModal}
-        onClose={() => {
-          playPop(soundEnabled);
-          setShowShareModal(false);
-        }}
-        shareUrl={shareUrl}
-        shareCopied={shareCopied}
-        onCopy={async () => {
-          playPop(soundEnabled);
-          try {
-            await navigator.clipboard.writeText(shareUrl);
-            setShareCopied(true);
-            setTimeout(() => setShareCopied(false), 2500);
-          } catch {
-            /* ignore */
-          }
-        }}
-        onShare={handleShareGame}
-        onOpenInstallPwa={() => {
-          setShowShareModal(false);
-          handleInstallPwa();
-        }}
-      />
+      {showShareModal && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => {
+            playPop(soundEnabled);
+            setShowShareModal(false);
+          }}
+          shareUrl={shareUrl}
+          shareCopied={shareCopied}
+          onCopy={async () => {
+            playPop(soundEnabled);
+            try {
+              await navigator.clipboard.writeText(shareUrl);
+              setShareCopied(true);
+              setTimeout(() => setShareCopied(false), 2500);
+            } catch {
+              /* ignore */
+            }
+          }}
+          onShare={handleShareGame}
+          onOpenInstallPwa={() => {
+            setShowShareModal(false);
+            handleInstallPwa();
+          }}
+        />
+      )}
 
       {/* MODAL: INSTALACIÓN PWA (EXTRAÍDO A COMPONENTE) */}
-      <InstallPwaModal
-        isOpen={showInstallModal}
-        onClose={() => {
-          playPop(soundEnabled);
-          setShowInstallModal(false);
-        }}
-        isStandalone={isStandalone}
-        isIos={isIos}
-        canInstallPwa={canInstallPwa}
-        promptPwaInstall={promptPwaInstall}
-        btnPrimary={btnPrimary}
-        btnGhost={btnGhost}
-        soundEnabled={soundEnabled}
-        playPop={playPop}
-      />
+      {showInstallModal && (
+        <InstallPwaModal
+          isOpen={showInstallModal}
+          onClose={() => {
+            playPop(soundEnabled);
+            setShowInstallModal(false);
+          }}
+          isStandalone={isStandalone}
+          isIos={isIos}
+          canInstallPwa={canInstallPwa}
+          promptPwaInstall={promptPwaInstall}
+          btnPrimary={btnPrimary}
+          btnGhost={btnGhost}
+          soundEnabled={soundEnabled}
+          playPop={playPop}
+        />
+      )}
 
       {/* MODAL: TECLADO PIN PARA SECCIÓN +18 (EXTRAÍDO A COMPONENTE) */}
-      <AdultPinModal
-        isOpen={showPinModal}
-        onClose={() => {
-          playPop(soundEnabled);
-          setShowPinModal(false);
-          setEnteredPin("");
-          setShowPinHint(false);
-        }}
-        pinModalMode={pinModalMode}
-        enteredPin={enteredPin}
-        pinError={pinError}
-        pinLockoutUntil={pinLockoutUntil}
-        pinFailedAttempts={pinFailedAttempts}
-        handlePinInput={handlePinInput}
-        handlePinDelete={handlePinDelete}
-        showPinHint={showPinHint}
-        setShowPinHint={setShowPinHint}
-        adultPin={adultPin}
-      />
+      {showPinModal && (
+        <AdultPinModal
+          isOpen={showPinModal}
+          onClose={() => {
+            playPop(soundEnabled);
+            setShowPinModal(false);
+            setEnteredPin("");
+            setShowPinHint(false);
+          }}
+          pinModalMode={pinModalMode}
+          enteredPin={enteredPin}
+          pinError={pinError}
+          pinLockoutUntil={pinLockoutUntil}
+          pinFailedAttempts={pinFailedAttempts}
+          handlePinInput={handlePinInput}
+          handlePinDelete={handlePinDelete}
+          showPinHint={showPinHint}
+          setShowPinHint={setShowPinHint}
+          adultPin={adultPin}
+        />
+      )}
 
       {/* PHASE 2: REVEAL (EXTRAÍDO A COMPONENTE) */}
       {phase === "reveal" && (

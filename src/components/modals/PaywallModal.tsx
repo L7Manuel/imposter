@@ -13,6 +13,8 @@ import {
   Copy,
   Send,
   CreditCard,
+  KeyRound,
+  ClipboardPaste,
 } from "lucide-react";
 import {
   PartyPassPlan,
@@ -89,18 +91,27 @@ export function PaywallModal({
   freeTrialUsed = false,
   onActivateFreeTrial,
 }: PaywallModalProps) {
+  const [activeSubTab, setActiveSubTab] = React.useState<"plans" | "code">("plans");
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div
+      className={`fixed inset-0 z-50 flex justify-center bg-black/92 sm:backdrop-blur-md p-4 animate-in fade-in duration-150 ${
+        !activePaymentTracker && proModalView === "perks" && activeSubTab === "code"
+          ? "items-start sm:items-center pt-8 sm:pt-4"
+          : "items-center"
+      }`}
+    >
       <div className="flex max-h-[92vh] w-full max-w-sm flex-col rounded-3xl glass-panel border-2 border-amber-400/50 shadow-[0_0_40px_rgba(245,158,11,0.25)] overflow-hidden">
         {/* Header VIP / Checkout */}
-        <div className="relative bg-gradient-to-br from-amber-500/25 via-yellow-500/10 to-transparent px-5 pt-5 pb-4 border-b border-white/10 text-center">
+        <div className="relative bg-gradient-to-br from-amber-500/25 via-yellow-500/10 to-transparent px-5 pt-4 pb-3.5 border-b border-white/10 text-center">
           <button
             onClick={() => {
               playPop(soundEnabled);
               onClose();
               setProModalView("perks");
+              setActiveSubTab("plans");
             }}
             aria-label="Cerrar Party Pass PRO"
             className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-muted-foreground hover:text-white transition cursor-pointer"
@@ -143,20 +154,54 @@ export function PaywallModal({
             </div>
           ) : (
             <>
-              <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 text-black shadow-lg">
-                <Crown size={26} />
+              <div className="mx-auto mb-1.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 text-black shadow-lg">
+                <Crown size={24} />
               </div>
               <h3 className="font-display text-2xl tracking-wider text-amber-300">
                 PARTY PASS PRO
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-[11px] text-muted-foreground mt-0.5">
                 Desbloquea la experiencia completa para toda tu fiesta
               </p>
+
+              {/* Selector Superior de 2 Pestañas: Planes VIP | Canjear Código */}
+              <div className="mt-3 grid grid-cols-2 gap-1.5 rounded-2xl bg-black/50 p-1 border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playPop(soundEnabled);
+                    setActiveSubTab("plans");
+                  }}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-extrabold transition cursor-pointer ${
+                    activeSubTab === "plans"
+                      ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-black shadow"
+                      : "text-muted-foreground hover:text-white"
+                  }`}
+                >
+                  <Crown size={13} />
+                  <span>Planes VIP</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playPop(soundEnabled);
+                    setActiveSubTab("code");
+                  }}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-extrabold transition cursor-pointer ${
+                    activeSubTab === "code"
+                      ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-black shadow"
+                      : "text-muted-foreground hover:text-white"
+                  }`}
+                >
+                  <KeyRound size={13} />
+                  <span>Canjear Código</span>
+                </button>
+              </div>
             </>
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto smooth-scroll p-5 space-y-4">
           {activePaymentTracker ? (
             <div className="text-center space-y-4 py-2">
               <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-400/20 border-2 border-emerald-400 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
@@ -228,6 +273,87 @@ export function PaywallModal({
               >
                 Corregir referencia bancaria
               </button>
+            </div>
+          ) : proModalView === "perks" && activeSubTab === "code" ? (
+            /* VISTA EXCLUSIVA SUPERIOR: CANJEAR CÓDIGO (CERO SCROLL EN MÓVIL) */
+            <div className="space-y-3.5 py-1">
+              <div className="rounded-2xl border border-amber-400/35 bg-gradient-to-br from-amber-500/15 via-yellow-500/5 to-transparent p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-display text-sm tracking-wider text-amber-300">
+                      CANJEAR CÓDIGO DE ACCESO
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
+                      Ingresa tu código promocional o de invitación
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      playPop(soundEnabled);
+                      try {
+                        const clipText = await navigator.clipboard.readText();
+                        if (clipText && clipText.trim()) {
+                          setProCodeInput(clipText.trim());
+                        }
+                      } catch {
+                        /* portapapeles bloqueado por navegador */
+                      }
+                    }}
+                    className="flex items-center gap-1 rounded-xl border border-amber-400/40 bg-amber-400/15 px-2.5 py-1.5 text-[11px] font-bold text-amber-200 hover:bg-amber-400/25 transition cursor-pointer shrink-0"
+                    title="Pegar código del portapapeles"
+                  >
+                    <ClipboardPaste size={13} />
+                    <span>Pegar</span>
+                  </button>
+                </div>
+
+                <input
+                  value={proCodeInput}
+                  onChange={(e) => setProCodeInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleRedeemCode()}
+                  placeholder="Ingresa tu código aquí..."
+                  autoFocus
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="w-full rounded-xl border-2 border-amber-400/50 bg-black/60 px-3.5 py-3 text-sm font-mono uppercase tracking-wider text-white placeholder:text-muted-foreground/60 outline-none focus:border-amber-300 shadow-inner"
+                />
+
+                {proCodeFeedback && (
+                  <div
+                    className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                      proCodeFeedback.type === "success"
+                        ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
+                        : "border-rose-400/40 bg-rose-500/15 text-amber-200"
+                    }`}
+                  >
+                    {proCodeFeedback.text}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleRedeemCode}
+                  className="w-full rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 py-3 font-display text-sm tracking-wider text-black font-extrabold shadow-[0_0_20px_rgba(245,158,11,0.35)] hover:brightness-110 active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <KeyRound size={15} />
+                  <span>ACTIVAR CÓDIGO AHORA</span>
+                </button>
+              </div>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playPop(soundEnabled);
+                    setActiveSubTab("plans");
+                  }}
+                  className="text-[11px] font-semibold text-amber-300 hover:underline cursor-pointer"
+                >
+                  ¿No tienes un código? Ver Planes Party Pass PRO
+                </button>
+              </div>
             </div>
           ) : proModalView === "perks" ? (
             <>
@@ -399,40 +525,19 @@ export function PaywallModal({
                 <ArrowRight size={15} />
               </button>
 
-              {/* Canje de Código VIP / Clave Maestro CEO */}
-              <div className="pt-3 border-t border-white/10 space-y-2">
-                <label className="text-[11px] font-semibold text-muted-foreground block">
-                  ¿Tienes un Código Promo o Clave Ejecutiva CEO?
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    value={proCodeInput}
-                    onChange={(e) => setProCodeInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleRedeemCode()}
-                    placeholder="Ingresa tu código..."
-                    className="flex-1 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-xs font-mono uppercase text-foreground outline-none focus:border-amber-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleRedeemCode}
-                    className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer shadow-md ${
-                      proCodeInput.trim().length > 0
-                        ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-black font-extrabold hover:brightness-110 active:scale-95"
-                        : "bg-white/15 hover:bg-white/25 text-white border border-white/15"
-                    }`}
-                  >
-                    Activar
-                  </button>
-                </div>
-                {proCodeFeedback && (
-                  <p
-                    className={`text-[11px] font-semibold ${
-                      proCodeFeedback.type === "success" ? "text-emerald-400" : "text-amber-300"
-                    }`}
-                  >
-                    {proCodeFeedback.text}
-                  </p>
-                )}
+              {/* Acceso directo a la pestaña de Canjear Código */}
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playPop(soundEnabled);
+                    setActiveSubTab("code");
+                  }}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-300 hover:text-amber-200 hover:underline transition cursor-pointer"
+                >
+                  <KeyRound size={12} />
+                  <span>¿Tienes un código o cupón VIP? Toca aquí para canjearlo</span>
+                </button>
               </div>
             </>
           ) : (
@@ -855,6 +960,7 @@ export function PaywallModal({
                   onClick={() => {
                     playPop(soundEnabled);
                     setProModalView("perks");
+                    setActiveSubTab("code");
                   }}
                   className="text-[11px] text-amber-300 hover:underline font-semibold cursor-pointer"
                 >

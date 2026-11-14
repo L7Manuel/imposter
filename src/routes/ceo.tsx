@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
 import {
   Crown,
@@ -43,15 +43,37 @@ import { CeoFoundersTab, CeoPaymentsTab, CeoTestersTab, CeoMetricsTab } from "@/
 
 export const Route = createFileRoute("/ceo")({
   loader: async () => {
-    return await checkCeoAuthServerFn();
+    let clientToken: string | undefined;
+    if (typeof window !== "undefined") {
+      try {
+        clientToken = localStorage.getItem(STORAGE_KEYS.CEO_TOKEN) || undefined;
+      } catch {
+        /* ignore */
+      }
+    }
+    return await checkCeoAuthServerFn({ data: { clientToken } });
   },
   component: CeoPage,
 });
 
 export function CeoPage() {
   const loaderData = Route.useLoaderData();
-  const [token, setToken] = useState<string | null>(loaderData?.token ?? null);
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(loaderData?.isAuthorized ?? false);
+  const [token, setToken] = useState<string | null>(() => {
+    if (loaderData?.token) return loaderData.token;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(STORAGE_KEYS.CEO_TOKEN);
+      if (stored && isValidStoredToken(stored, "ceo")) return stored;
+    }
+    return null;
+  });
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
+    if (loaderData?.isAuthorized) return true;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(STORAGE_KEYS.CEO_TOKEN);
+      if (stored && isValidStoredToken(stored, "ceo")) return true;
+    }
+    return false;
+  });
   const [activeTab, setActiveTab] = useState<
     "fundadores" | "cobros" | "testers" | "metricas" | "seguridad"
   >("fundadores");
@@ -74,24 +96,38 @@ export function CeoPage() {
     text: string;
   } | null>(null);
 
-  // Founders state
-  const [founders, setFounders] = useState<FounderRecord[]>([]);
+  // Founders state (inicializado desde loader para Cero-Parpadeo)
+  const [founders, setFounders] = useState<FounderRecord[]>(
+    () => loaderData?.initialFounders ?? [],
+  );
   const [isLoadingFounders, setIsLoadingFounders] = useState(false);
 
-  // Payments state
-  const [payments, setPayments] = useState<PendingPayment[]>([]);
+  // Payments state (inicializado desde loader para Cero-Parpadeo)
+  const [payments, setPayments] = useState<PendingPayment[]>(
+    () => loaderData?.initialPayments ?? [],
+  );
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
-  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(DEFAULT_PAYMENT_CONFIG);
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>(
+    () => loaderData?.initialPaymentConfig ?? DEFAULT_PAYMENT_CONFIG,
+  );
 
   // Testers state
   const [decryptedCodes, setDecryptedCodes] = useState<string[]>(() => {
     if (loaderData?.token) {
       return getDecryptedVipCodes(loaderData.token);
     }
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(STORAGE_KEYS.CEO_TOKEN);
+      if (stored && isValidStoredToken(stored, "ceo")) {
+        return getDecryptedVipCodes(stored);
+      }
+    }
     return [];
   });
   const [couponNames, setCouponNames] = useState<Record<number, string>>({});
-  const [usedCoupons, setUsedCoupons] = useState<string[]>([]);
+  const [usedCoupons, setUsedCoupons] = useState<string[]>(
+    () => loaderData?.initialUsedCoupons ?? [],
+  );
 
   // Metrics state
   const [metrics, setMetrics] = useState<GlobalMetrics>({
@@ -140,13 +176,15 @@ export function CeoPage() {
 
     try {
       const storedPayConfig = localStorage.getItem(STORAGE_KEYS.PAYMENT_CONFIG);
-      if (storedPayConfig) {
+      if (storedPayConfig && !loaderData?.isAuthorized) {
         setPaymentConfig(sanitizePaymentConfig(JSON.parse(storedPayConfig)));
       }
       const storedNames = localStorage.getItem(STORAGE_KEYS.COUPON_NAMES);
       if (storedNames) setCouponNames(JSON.parse(storedNames));
-      const storedUsed = localStorage.getItem(STORAGE_KEYS.USED_COUPONS);
-      if (storedUsed) setUsedCoupons(JSON.parse(storedUsed));
+      if (!loaderData?.initialUsedCoupons?.length) {
+        const storedUsed = localStorage.getItem(STORAGE_KEYS.USED_COUPONS);
+        if (storedUsed) setUsedCoupons(JSON.parse(storedUsed));
+      }
     } catch {
       /* ignore */
     }
@@ -154,9 +192,9 @@ export function CeoPage() {
 
   // Fetch data on active tab
   const fetchFounders = useCallback(
-    async (curToken = token) => {
+    async (curToken = token, silent = false) => {
       if (!curToken) return;
-      setIsLoadingFounders(true);
+      if (!silent) setIsLoadingFounders(true);
       try {
         const res = await getFoundersDataServerFn({ data: { ceoToken: curToken } });
         if (res.success && res.founders) {
@@ -165,16 +203,16 @@ export function CeoPage() {
       } catch {
         /* ignore */
       } finally {
-        setIsLoadingFounders(false);
+        if (!silent) setIsLoadingFounders(false);
       }
     },
     [token],
   );
 
   const fetchPayments = useCallback(
-    async (curToken = token, fetchConfig = true) => {
+    async (curToken = token, fetchConfig = true, silent = false) => {
       if (!curToken) return;
-      setIsLoadingPayments(true);
+      if (!silent) setIsLoadingPayments(true);
       try {
         const res = await getPendingPaymentsServerFn({ data: { ceoToken: curToken } });
         if (res.success && res.payments) {
@@ -202,14 +240,14 @@ export function CeoPage() {
       } catch {
         /* ignore */
       } finally {
-        setIsLoadingPayments(false);
+        if (!silent) setIsLoadingPayments(false);
       }
     },
     [token],
   );
 
-  const fetchMetrics = useCallback(async () => {
-    setIsLoadingMetrics(true);
+  const fetchMetrics = useCallback(async (silent = false) => {
+    if (!silent) setIsLoadingMetrics(true);
     try {
       const res = await getGlobalMetricsServerFn({ data: {} });
       if (res && typeof res.totalRoundsStarted === "number") {
@@ -218,7 +256,7 @@ export function CeoPage() {
     } catch {
       /* ignore */
     } finally {
-      setIsLoadingMetrics(false);
+      if (!silent) setIsLoadingMetrics(false);
     }
   }, []);
 
@@ -239,9 +277,9 @@ export function CeoPage() {
 
   useEffect(() => {
     if (!isAuthorized || !token) return;
-    if (activeTab === "fundadores") fetchFounders(token);
-    if (activeTab === "cobros") fetchPayments(token);
-    if (activeTab === "metricas") fetchMetrics();
+    if (activeTab === "fundadores") fetchFounders(token, true);
+    if (activeTab === "cobros") fetchPayments(token, true, true);
+    if (activeTab === "metricas") fetchMetrics(true);
     if (activeTab === "testers") fetchTesterStatuses();
   }, [
     activeTab,
@@ -258,14 +296,14 @@ export function CeoPage() {
     if (!isAuthorized || !token) return;
     if (activeTab === "metricas") {
       const timer = setInterval(() => {
-        fetchMetrics();
+        fetchMetrics(true);
       }, 10000);
       return () => clearInterval(timer);
     }
     if (activeTab === "cobros") {
       const timer = setInterval(() => {
         // En el polling periódico, únicamente refrescamos las transferencias pendientes (payments), sin sobrescribir el formulario de configuración
-        fetchPayments(token, false);
+        fetchPayments(token, false, true);
       }, 15000);
       return () => clearInterval(timer);
     }
@@ -469,12 +507,12 @@ export function CeoPage() {
           </form>
 
           <div className="mt-6 pt-4 border-t border-white/10">
-            <a
-              href="/"
+            <Link
+              to="/"
               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition"
             >
               <ArrowLeft size={13} /> Volver al Juego
-            </a>
+            </Link>
           </div>
         </div>
       </main>
@@ -489,13 +527,13 @@ export function CeoPage() {
       {/* Top Bar */}
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
         <div className="flex items-center gap-3">
-          <a
-            href="/"
+          <Link
+            to="/"
             className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer"
             title="Volver al juego"
           >
             <ArrowLeft size={16} />
-          </a>
+          </Link>
           <div>
             <div className="flex items-center gap-2">
               <Crown size={20} className="text-amber-400" />
@@ -510,12 +548,12 @@ export function CeoPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <a
-            href="/"
+          <Link
+            to="/"
             className="rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/10 transition"
           >
             Ir a Jugar
-          </a>
+          </Link>
           <button
             onClick={handleLogout}
             className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition cursor-pointer"

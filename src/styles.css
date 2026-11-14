@@ -151,18 +151,23 @@
 
 .animate-laser {
   animation: laserSweep 1.6s ease-in-out infinite;
+  will-change: top, opacity;
+  transform: translateZ(0);
 }
 
 .animate-heartbeat {
   animation: heartbeat 0.75s ease-in-out infinite;
+  will-change: transform;
 }
 
 .animate-pulse-glow {
   animation: pulseGlow 2s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .animate-shake {
   animation: shake 0.35s ease-in-out;
+  will-change: transform;
 }
 
 @keyframes floatSlow {
@@ -177,6 +182,7 @@
 
 .animate-float {
   animation: floatSlow 2.8s ease-in-out infinite;
+  will-change: transform;
 }
 
 @keyframes goldShimmer {
@@ -191,6 +197,7 @@
 
 .animate-shimmer {
   animation: goldShimmer 4.5s ease-in-out infinite;
+  will-change: transform;
 }
 
 .glass-panel {

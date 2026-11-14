@@ -38,6 +38,73 @@ declare global {
   var __imposterGlobalMetrics: GlobalMetrics | undefined;
   var __imposterTelemetryRateLimitMap: Map<string, number[]> | undefined;
   var __imposterProcessedTelemetryIds: Set<string> | undefined;
+  var __imposterTelemetryHydrated: boolean | undefined;
+}
+
+const TELEMETRY_STORAGE_KEY = "imposter:telemetry:v2";
+
+async function ensureTelemetryHydrated(): Promise<void> {
+  if (globalThis.__imposterTelemetryHydrated) return;
+  globalThis.__imposterTelemetryHydrated = true;
+  try {
+    let rawJson: string | null = null;
+    const kv = (
+      globalThis as unknown as {
+        __env__?: { IMPOSTER_KV?: { get(k: string): Promise<string | null> } };
+      }
+    ).__env__?.IMPOSTER_KV;
+    if (kv) {
+      rawJson = await kv.get(TELEMETRY_STORAGE_KEY);
+    } else if (typeof process !== "undefined" && process.versions?.node) {
+      try {
+        const fs = await import("node:fs/promises");
+        rawJson = await fs.readFile(".wrangler/imposter-telemetry-dev.json", "utf8");
+      } catch {
+        rawJson = null;
+      }
+    }
+    if (!rawJson) return;
+    const parsed = JSON.parse(rawJson) as Partial<GlobalMetrics>;
+    const store = getGlobalMetricsStore();
+    if (typeof parsed.totalRoundsStarted === "number")
+      store.totalRoundsStarted = parsed.totalRoundsStarted;
+    if (typeof parsed.totalRoundsCompleted === "number")
+      store.totalRoundsCompleted = parsed.totalRoundsCompleted;
+    if (typeof parsed.totalPaywallViews === "number")
+      store.totalPaywallViews = parsed.totalPaywallViews;
+    if (typeof parsed.totalPwaInstalls === "number")
+      store.totalPwaInstalls = parsed.totalPwaInstalls;
+    if (parsed.categoryCounts) store.categoryCounts = parsed.categoryCounts;
+    if (parsed.deviceCounts) store.deviceCounts = parsed.deviceCounts;
+    if (Array.isArray(parsed.recentEvents)) store.recentEvents = parsed.recentEvents;
+    if (typeof parsed.lastUpdated === "number") store.lastUpdated = parsed.lastUpdated;
+  } catch {
+    /* ignore hydration errors */
+  }
+}
+
+async function persistTelemetrySnapshot(): Promise<void> {
+  try {
+    const serialized = JSON.stringify(getGlobalMetricsStore());
+    const kv = (
+      globalThis as unknown as {
+        __env__?: { IMPOSTER_KV?: { put(k: string, v: string): Promise<void> } };
+      }
+    ).__env__?.IMPOSTER_KV;
+    if (kv) {
+      await kv.put(TELEMETRY_STORAGE_KEY, serialized);
+    } else if (typeof process !== "undefined" && process.versions?.node) {
+      try {
+        const fs = await import("node:fs/promises");
+        await fs.mkdir(".wrangler", { recursive: true });
+        await fs.writeFile(".wrangler/imposter-telemetry-dev.json", serialized, "utf8");
+      } catch {
+        /* ignore local dev write error */
+      }
+    }
+  } catch {
+    /* ignore persistence errors */
+  }
 }
 
 function getGlobalMetricsStore(): GlobalMetrics {
@@ -128,6 +195,7 @@ async function sendDiscordMetricsEmbed(embed: {
 export const reportTelemetryServerFn = createServerFn({ method: "POST" })
   .validator((input: TelemetryEventPayload) => input)
   .handler(async ({ data }) => {
+    await ensureTelemetryHydrated();
     if (isDuplicateEvent(data.eventId)) {
       return { ok: true, deduplicated: true };
     }
@@ -266,12 +334,14 @@ export const reportTelemetryServerFn = createServerFn({ method: "POST" })
       store.recentEvents = store.recentEvents.slice(0, 20);
     }
 
+    await persistTelemetrySnapshot();
     return { ok: true };
   });
 
 export const getGlobalMetricsServerFn = createServerFn({ method: "POST" })
   .validator((input: { reset?: boolean } | undefined) => input)
   .handler(async ({ data }) => {
+    await ensureTelemetryHydrated();
     const store = getGlobalMetricsStore();
 
     if (data?.reset) {
@@ -283,6 +353,7 @@ export const getGlobalMetricsServerFn = createServerFn({ method: "POST" })
       store.deviceCounts = { android: 0, ios: 0, desktop: 0 };
       store.recentEvents = [];
       store.lastUpdated = Date.now();
+      await persistTelemetrySnapshot();
 
       try {
         await fetch("https://atlas-bot-2xh4.onrender.com/api/telemetry", {
