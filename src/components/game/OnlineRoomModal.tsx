@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   X,
   Users,
@@ -106,6 +106,16 @@ export function OnlineRoomModal({
   const [isHoldingCard, setIsHoldingCard] = useState<boolean>(false);
   const [showQr, setShowQr] = useState<boolean>(false);
   const [activePenalty, setActivePenalty] = useState<string | null>(null);
+  const roomUpdatedAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    roomUpdatedAtRef.current = room?.updatedAt ?? 0;
+    if (typeof window !== "undefined") {
+      if (room?.code) {
+        sessionStorage.setItem("impostor-active-online-room", room.code);
+      }
+    }
+  }, [room?.updatedAt, room?.code]);
 
   useEffect(() => {
     if (initialJoinCode) {
@@ -113,10 +123,17 @@ export function OnlineRoomModal({
     }
   }, [initialJoinCode]);
 
-  const pollRoom = useCallback(async (code: string) => {
+  const pollRoom = useCallback(async (code: string, forceFull = false) => {
+    if (typeof document !== "undefined" && document.hidden && !forceFull) return;
     try {
-      const res = await getOnlineRoomStateServerFn({ data: { code } });
-      if (res.success && res.room) {
+      const res = await getOnlineRoomStateServerFn({
+        data: {
+          code,
+          sinceUpdatedAt: forceFull ? undefined : roomUpdatedAtRef.current || undefined,
+        },
+      });
+      if (res.success && !res.unchanged && res.room) {
+        roomUpdatedAtRef.current = res.room.updatedAt;
         setRoom(res.room);
       }
     } catch {
@@ -124,12 +141,37 @@ export function OnlineRoomModal({
     }
   }, []);
 
+  // Reconexión instantánea en 0ms si el usuario recargó la pestaña y tenía una sala activa
+  useEffect(() => {
+    if (!isOpen || room) return;
+    if (typeof window !== "undefined") {
+      const savedCode = sessionStorage.getItem("impostor-active-online-room");
+      if (savedCode && !initialJoinCode) {
+        void pollRoom(savedCode, true);
+      }
+    }
+  }, [isOpen, room, initialJoinCode, pollRoom]);
+
   useEffect(() => {
     if (!isOpen || !room?.code) return;
+    const code = room.code;
     const interval = setInterval(() => {
-      pollRoom(room.code);
-    }, 1800);
-    return () => clearInterval(interval);
+      void pollRoom(code);
+    }, 1500);
+    const onVisibilityChange = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        void pollRoom(code, true);
+      }
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibilityChange);
+    }
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
+    };
   }, [isOpen, room?.code, pollRoom]);
 
   if (!isOpen) return null;
@@ -274,7 +316,7 @@ export function OnlineRoomModal({
   const isMyRoleJester = room ? room.jesterIndex === myPlayerIndex : false;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/92 sm:backdrop-blur-md p-4 animate-in fade-in duration-150">
       <div className="flex max-h-[92vh] w-full max-w-md flex-col rounded-3xl glass-panel border-2 border-accent/40 shadow-[0_0_45px_rgba(56,189,248,0.2)] overflow-hidden">
         {/* Top Header */}
         <div className="relative flex items-center justify-between bg-gradient-to-r from-accent/20 via-primary/10 to-transparent px-5 py-4 border-b border-white/10">
@@ -304,7 +346,7 @@ export function OnlineRoomModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto smooth-scroll p-5 space-y-4">
           {!room ? (
             /* PANTALLA DE CREAR O UNIRSE A SALA */
             <div className="space-y-4">
@@ -346,28 +388,31 @@ export function OnlineRoomModal({
                 </button>
               </div>
 
-              <div className="relative flex items-center justify-center py-1">
-                <div className="border-t border-white/10 w-full" />
-                <span className="bg-background px-3 text-[10px] uppercase tracking-widest text-muted-foreground">
-                  O entra con código
-                </span>
-                <div className="border-t border-white/10 w-full" />
-              </div>
-
               {/* Unirse a Sala Existente */}
-              <form onSubmit={handleJoinRoom} className="space-y-2.5">
+              <form
+                onSubmit={handleJoinRoom}
+                className="rounded-2xl bg-gradient-to-br from-accent/15 via-accent/5 to-transparent border border-accent/30 p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-accent uppercase tracking-wider">
+                    ¿Tienes un código de invitación?
+                  </span>
+                  <span className="rounded-full bg-accent/15 border border-accent/30 px-2.5 py-0.5 text-[10px] font-bold text-accent">
+                    Acceso directo
+                  </span>
+                </div>
                 <div className="flex gap-2">
                   <input
                     value={joinCodeInput}
                     onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
                     placeholder="CÓDIGO (EJ: MESA)"
                     maxLength={4}
-                    className="flex-1 rounded-xl bg-white/5 border border-white/15 px-3.5 py-2.5 text-center font-mono text-base font-bold tracking-widest uppercase text-accent outline-none focus:border-accent"
+                    className="flex-1 rounded-xl bg-black/40 border border-accent/25 px-3.5 py-2.5 text-center font-mono text-base font-bold tracking-widest uppercase text-accent placeholder:text-muted-foreground/50 outline-none focus:border-accent"
                   />
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="rounded-xl bg-accent px-5 py-2.5 text-xs font-bold text-slate-950 transition hover:brightness-110 active:scale-95 cursor-pointer"
+                    className="rounded-xl bg-accent px-5 py-2.5 text-xs font-extrabold uppercase tracking-wider text-slate-950 shadow-[0_0_20px_rgba(56,189,248,0.25)] transition hover:brightness-110 active:scale-95 cursor-pointer"
                   >
                     Entrar
                   </button>
@@ -502,6 +547,21 @@ export function OnlineRoomModal({
                   Esperando a que el anfitrión reparta las cartas...
                 </div>
               )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  playPop(soundEnabled);
+                  if (typeof window !== "undefined") {
+                    sessionStorage.removeItem("impostor-active-online-room");
+                  }
+                  roomUpdatedAtRef.current = 0;
+                  setRoom(null);
+                }}
+                className="w-full py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition cursor-pointer"
+              >
+                Salir de esta sala o ingresar otro código
+              </button>
             </div>
           ) : room.phase === "reveal" ? (
             /* CARTA SECRETA INDIVIDUAL EN EL TELÉFONO DE CADA JUGADOR */

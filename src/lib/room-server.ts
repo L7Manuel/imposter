@@ -39,15 +39,28 @@ export interface OnlineRoomState {
   updatedAt: number;
 }
 
+interface CloudflareKVNamespace {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+}
+
 declare global {
   var __imposterOnlineRooms: Map<string, OnlineRoomState> | undefined;
+  var __imposterRoomLastKvFetch: Map<string, number> | undefined;
+  var __env__: { IMPOSTER_KV?: CloudflareKVNamespace } | undefined;
+}
+
+const ROOM_KV_PREFIX = "imposter:room:";
+const ROOM_TTL_SECONDS = 4 * 3600; // 4 horas
+
+function getCloudflareKv(): CloudflareKVNamespace | null {
+  return globalThis.__env__?.IMPOSTER_KV ?? null;
 }
 
 function getRoomsStore(): Map<string, OnlineRoomState> {
   if (!globalThis.__imposterOnlineRooms) {
     globalThis.__imposterOnlineRooms = new Map();
   }
-  // Limpiar salas inactivas de más de 4 horas
   const now = Date.now();
   for (const [code, room] of globalThis.__imposterOnlineRooms.entries()) {
     if (now - room.updatedAt > 4 * 3600 * 1000) {
@@ -55,6 +68,65 @@ function getRoomsStore(): Map<string, OnlineRoomState> {
     }
   }
   return globalThis.__imposterOnlineRooms;
+}
+
+function getRoomLastFetchMap(): Map<string, number> {
+  if (!globalThis.__imposterRoomLastKvFetch) {
+    globalThis.__imposterRoomLastKvFetch = new Map();
+  }
+  return globalThis.__imposterRoomLastKvFetch;
+}
+
+async function loadRoomByCode(rawCode: string): Promise<OnlineRoomState | null> {
+  const code = (rawCode || "").trim().toUpperCase();
+  if (!code) return null;
+
+  const store = getRoomsStore();
+  const fetchMap = getRoomLastFetchMap();
+  const now = Date.now();
+  const cached = store.get(code);
+
+  // Si se consultó hace menos de 800ms en este isolate, responder desde RAM a 0ms
+  if (cached && now - (fetchMap.get(code) ?? 0) < 800) {
+    return cached;
+  }
+
+  try {
+    const kv = getCloudflareKv();
+    if (kv) {
+      const raw = await kv.get(`${ROOM_KV_PREFIX}${code}`);
+      fetchMap.set(code, now);
+      if (raw) {
+        const parsed = JSON.parse(raw) as OnlineRoomState;
+        if (!cached || parsed.updatedAt >= cached.updatedAt) {
+          store.set(code, parsed);
+          return parsed;
+        }
+      }
+    }
+  } catch {
+    /* fallback to in-memory store */
+  }
+
+  return cached ?? null;
+}
+
+async function saveRoomState(room: OnlineRoomState): Promise<void> {
+  const store = getRoomsStore();
+  const fetchMap = getRoomLastFetchMap();
+  store.set(room.code, room);
+  fetchMap.set(room.code, Date.now());
+
+  try {
+    const kv = getCloudflareKv();
+    if (kv) {
+      await kv.put(`${ROOM_KV_PREFIX}${room.code}`, JSON.stringify(room), {
+        expirationTtl: ROOM_TTL_SECONDS,
+      });
+    }
+  } catch {
+    /* ignore KV write error */
+  }
 }
 
 function generateRoomCode(store: Map<string, OnlineRoomState>): string {
@@ -121,16 +193,15 @@ export const createOnlineRoomServerFn = createServerFn({ method: "POST" })
       updatedAt: Date.now(),
     };
 
-    store.set(code, room);
+    await saveRoomState(room);
     return { success: true, room };
   });
 
 export const joinOnlineRoomServerFn = createServerFn({ method: "POST" })
   .validator((input: { code: string; playerId: string; playerName: string }) => input)
   .handler(async ({ data }) => {
-    const store = getRoomsStore();
     const cleanCode = (data.code || "").trim().toUpperCase();
-    const room = store.get(cleanCode);
+    const room = await loadRoomByCode(cleanCode);
 
     if (!room) {
       return { success: false, error: "No existe ninguna sala activa con ese código." };
@@ -142,6 +213,7 @@ export const joinOnlineRoomServerFn = createServerFn({ method: "POST" })
     if (existingIdx >= 0) {
       room.players[existingIdx]!.name = cleanName;
       room.updatedAt = Date.now();
+      await saveRoomState(room);
       return { success: true, room };
     }
 
@@ -163,19 +235,22 @@ export const joinOnlineRoomServerFn = createServerFn({ method: "POST" })
       votedForIndex: null,
     });
     room.updatedAt = Date.now();
+    await saveRoomState(room);
     return { success: true, room };
   });
 
 export const getOnlineRoomStateServerFn = createServerFn({ method: "POST" })
-  .validator((input: { code: string }) => input)
+  .validator((input: { code: string; sinceUpdatedAt?: number }) => input)
   .handler(async ({ data }) => {
-    const store = getRoomsStore();
     const cleanCode = (data.code || "").trim().toUpperCase();
-    const room = store.get(cleanCode);
+    const room = await loadRoomByCode(cleanCode);
     if (!room) {
-      return { success: false, error: "La sala ha finalizado o no existe." };
+      return { success: false, unchanged: false, error: "La sala ha finalizado o no existe." };
     }
-    return { success: true, room };
+    if (data.sinceUpdatedAt && room.updatedAt === data.sinceUpdatedAt) {
+      return { success: true, unchanged: true, room: undefined };
+    }
+    return { success: true, unchanged: false, room };
   });
 
 export const updateOnlineRoomConfigServerFn = createServerFn({ method: "POST" })
@@ -193,8 +268,7 @@ export const updateOnlineRoomConfigServerFn = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data }) => {
-    const store = getRoomsStore();
-    const room = store.get(data.code.trim().toUpperCase());
+    const room = await loadRoomByCode(data.code);
     if (!room || room.hostId !== data.hostId) {
       return { success: false, error: "No autorizado." };
     }
@@ -206,14 +280,14 @@ export const updateOnlineRoomConfigServerFn = createServerFn({ method: "POST" })
     if (typeof data.jesterEnabled === "boolean") room.jesterEnabled = data.jesterEnabled;
     if (typeof data.accompliceMode === "boolean") room.accompliceMode = data.accompliceMode;
     room.updatedAt = Date.now();
+    await saveRoomState(room);
     return { success: true, room };
   });
 
 export const startOnlineRoomRoundServerFn = createServerFn({ method: "POST" })
   .validator((input: { code: string; hostId: string }) => input)
   .handler(async ({ data }) => {
-    const store = getRoomsStore();
-    const room = store.get(data.code.trim().toUpperCase());
+    const room = await loadRoomByCode(data.code);
     if (!room || room.hostId !== data.hostId) {
       return { success: false, error: "Solo el anfitrión puede iniciar la partida." };
     }
@@ -265,6 +339,7 @@ export const startOnlineRoomRoundServerFn = createServerFn({ method: "POST" })
     room.phase = "reveal";
     room.updatedAt = Date.now();
 
+    await saveRoomState(room);
     return { success: true, room };
   });
 
@@ -277,8 +352,7 @@ export const advanceOnlineRoomPhaseServerFn = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data }) => {
-    const store = getRoomsStore();
-    const room = store.get(data.code.trim().toUpperCase());
+    const room = await loadRoomByCode(data.code);
     if (!room || room.hostId !== data.hostId) {
       return { success: false, error: "Solo el anfitrión puede cambiar de fase." };
     }
@@ -287,14 +361,14 @@ export const advanceOnlineRoomPhaseServerFn = createServerFn({ method: "POST" })
       room.roundStartedAt = Date.now();
     }
     room.updatedAt = Date.now();
+    await saveRoomState(room);
     return { success: true, room };
   });
 
 export const castOnlineVoteServerFn = createServerFn({ method: "POST" })
   .validator((input: { code: string; playerId: string; targetIndex: number }) => input)
   .handler(async ({ data }) => {
-    const store = getRoomsStore();
-    const room = store.get(data.code.trim().toUpperCase());
+    const room = await loadRoomByCode(data.code);
     if (!room || room.phase !== "vote") {
       return { success: false, error: "La votación no está abierta." };
     }
@@ -340,5 +414,6 @@ export const castOnlineVoteServerFn = createServerFn({ method: "POST" })
       room.phase = "result";
     }
 
+    await saveRoomState(room);
     return { success: true, room };
   });
