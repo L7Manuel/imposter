@@ -83,7 +83,7 @@ export function CeoPage() {
   // Estado del Generador y Bóveda de Llave Maestra CEO (AAA)
   const [keyVersion, setKeyVersion] = useState<number>(loaderData?.keyVersion ?? 1);
   const [maskedKeyPreview, setMaskedKeyPreview] = useState<string>(
-    loaderData?.maskedPreview ?? "CEO-IMPOSTER-2026 (Fábrica)",
+    loaderData?.maskedPreview ?? "CEO-••••-2026 (Fábrica)",
   );
   const [rotatedAt, setRotatedAt] = useState<number | null>(loaderData?.rotatedAt ?? null);
   const [candidateMasterKey, setCandidateMasterKey] = useState<string>(() =>
@@ -423,7 +423,7 @@ export function CeoPage() {
         setDecryptedCodes(getDecryptedVipCodes(res.token));
         setKeyVaultFeedback({
           type: "success",
-          text: "Llave Maestra restaurada al valor original de fábrica (CEO-IMPOSTER-2026).",
+          text: "Llave Maestra restaurada al valor original de fábrica.",
         });
       }
     } catch {
@@ -834,7 +834,7 @@ export function CeoPage() {
                 disabled={isRotatingKey}
                 onClick={handleResetFactoryMasterKey}
                 className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 py-3.5 px-4 text-xs font-semibold text-muted-foreground hover:text-foreground transition cursor-pointer"
-                title="Volver a la clave original CEO-IMPOSTER-2026"
+                title="Volver a la clave original de fábrica"
               >
                 <RotateCcw size={14} />
                 <span>Restaurar Llave de Fábrica</span>

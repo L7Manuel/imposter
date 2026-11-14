@@ -1,93 +1,87 @@
-# 🎮 Imposter — Party Game Cyber-Arcade
+# 🎮 Imposter v2.0.1 — Party Game Cyber-Arcade (Presencial & Online)
 
-Un juego de fiesta estilo _Spyfall_ y _Among Us_ de deducción social, misterio y engaño. Pasa el teléfono, escanea tu rol con el sensor biométrico y descubre a los traidores ocultos antes de que sea demasiado tarde.
+Un juego de fiesta estilo _Spyfall_ y _Among Us_ de deducción social, misterio y engaño. Juega en la misma sala pasando el teléfono (_Pass & Play_) o a distancia creando una **Sala Online Multijugador** en tiempo real. Escanea tu rol con el sensor biométrico y descubre a los traidores ocultos antes de que sea demasiado tarde.
 
 ---
 
-## ✨ Características Principales
+## ✨ Características Principales (`v2.0.1`)
 
-- **🧭 Configuración en 2 Pasos (_2-Step Wizard_)**:
-  - **Paso 1 (Sala de Jugadores)**: Gestiona de 3 a 15 jugadores con avatares cromáticos, botón **🔀 Mezclar** para orden aleatorio, ajustes de impostores y tiempo de debate, y botón flotante (_FAB_) de avance rápido.
-  - **Paso 2 (Mazo Arcade de Categorías)**: Galería visual de tarjetas temáticas con iconos grandes y contador en vivo de palabras libres para evitar repeticiones.
-- **🕵️ Impostores Flexibles & Modo Cómplice**: Configura hasta `N - 2` impostores. Activa el **Modo Cómplice** (los impostores se conocen entre sí) o el **Modo Caos** (nadie sabe quién más es impostor).
-- **🔥 Modo Experto Permanente**: El impostor nunca recibe pistas sobre la categoría; debe deducir el tema escuchando atentamente al grupo. El jugador que inicia la ronda siempre es inocente.
-- **🪪 Escáner Biométrico (_Hold-to-Reveal_)**: Tarjeta táctil con haz láser animado y zumbido sintetizado. El rol solo se muestra mientras mantienes presionado el sensor.
+- **🧭 Configuración Fluida en 3 Pasos (_3-Step Cyber-Arcade Wizard_)**:
+  - **Paso 1 — Jugadores**: Gestiona de 3 a 15 jugadores con avatares numerados, botón **Mezclar** para orden aleatorio y selector visual de quién inicia la ronda.
+  - **Paso 2 — Reglas y Roles**: Configura el número de impostores, minutos de debate, **Modo Cómplice / Caos**, **Pista Camaleón**, **El Bufón** y **Eventos Relámpago**.
+  - **Paso 3 — Categorías**: Mazo visual de tarjetas temáticas con iconos vectoriales Lucide y contador en vivo de palabras libres para evitar repeticiones.
+- **🌐 Salas Online Multijugador en Tiempo Real**:
+  - Crea una sala privada con código de **4 letras** o únete desde cualquier teléfono para jugar por llamada de WhatsApp, Discord o Zoom sin pasar físicamente el dispositivo.
+  - Sincronización en vivo de sala de espera, revelación individual de cartas, reloj de debate, votación simultánea y resultados.
+- **🦎 Pista Camaleón (_Palabra Señuelo para el Impostor_)**:
+  - El impostor siempre ve su **Tarjeta Roja de Impostor** garantizada, y cuando este modo está activo recibe además una **Pista Camaleón** (palabra señuelo del mismo campo semántico) para camuflarse durante el debate.
+- **🎯 Minijuego de Última Oportunidad (5 Opciones Táctiles)**:
+  - Si el grupo descubre al impostor en la votación, este tiene un intento final para robar la victoria eligiendo la palabra secreta real entre **5 botones táctiles** (1 palabra real + 4 señuelos de la misma categoría).
+- **🪪 Escáner Biométrico (_Hold-to-Reveal_)**:
+  - Tarjeta táctil con haz láser animado por GPU y zumbido sintetizado. El rol solo se muestra mientras mantienes presionado el sensor.
 - **📚 11 Categorías Oficiales & +560 Palabras**:
   - **3 Gratuitas (Base)**: _Comida, Lugares, Animales_ (150 palabras).
   - **8 Exclusivas (PRO)**: _Objetos, Profesiones, Cine y Series, Deportes, Videojuegos y Geek, Música y Artistas, Países y Maravillas, Fiesta +18_ (+410 palabras).
   - **🔞 Sección Fiesta +18 (PRO)**: 60 palabras picantes para adultos protegidas con PIN parental personalizable de 4 dígitos.
   - **✨ Categorías Personalizadas (PRO)**: Crea tus propias listas o exporta/importa packs completos en JSON desde el portapapeles.
 - **🃏 Rol Especial: El Bufón (PRO)**: Un jugador conoce la palabra secreta pero gana en solitario si logra actuar sospechoso y hacer que el grupo lo vote.
-- **⚡ Eventos Relámpago de Ronda (PRO)**: Modificadores sorpresa para el debate (_Ronda de Mímica, Doble Pista, Interrogatorio Cruzado, Rostro de Póker, Pista Relámpago, Inicial Prohibida_).
-- **👑 Sistema Party Pass PRO & Panel Ejecutivo**: Modelo _Freemium_ integrado con desbloqueo por pase o código promocional y telemetría global en tiempo real.
-- **🛰️ Radar de Telemetría en Vivo (Nivel A & Nivel B)**:
-  - **Nivel A (Discord `#metricas-imposter`)**: Alertas automáticas con tarjetas enriquecidas cuando un jugador inicia partida, concluye ronda o instala la PWA.
-  - **Nivel B (Radar CEO dentro de la App)**: Métricas globales agregadas por dispositivo (Android, iPhone / iOS, PC), ranking de categorías más jugadas y feed de actividad reciente.
-- **🤖 Atlas — Copiloto de IA & Bot Oficial de Discord**:
-  - Asistente inteligente alojado 24/7 en **Render Cloud** (`https://atlas-bot-2xh4.onrender.com`).
-  - Motor híbrido multi-proveedor (**Google Gemini Flash Lite**, **OpenRouter LLaMA 3.3 / DeepSeek**, **Groq Cloud**).
-  - Canales dedicados: `#despacho-ceo` (asesoramiento ejecutivo y métricas en tiempo real con TIRLEM), `#soporte-o-dudas` y `#fundador-vip`.
-  - Sistema de **Keep-Alive 24/7** automático para operar sin interrupciones en la nube gratuita.
-- **📲 Invitación Viral con Código QR**: Modal integrado en el encabezado con generador QR dinámico y botón de compartir nativo (`navigator.share`) para que los amigos abran el juego al instante en sus teléfonos.
-- **⏳ Reloj Radial de Tensión & SFX Web Audio**: Anillo circular dinámico con latido cardíaco en los últimos 10 segundos y efectos de sonido sintetizados en tiempo real (cero latencia y 100% offline).
-- **📱 PWA & Offline First**: Instalable en iOS, Android y escritorio mediante Service Workers y Wake Lock de pantalla.
-- **🛡️ Blindaje de Seguridad de 7 Capas**: Cero claves en texto plano, tokens de doble hash SHA-256 en `localStorage`, bloqueo anti-fuerza bruta en PIN parental (+18), rate-limiting anti-spam en pagos, sanitización estricta de entradas y cabeceras anti-clonación.
+- **⚡ Eventos Relámpago de Ronda y Ruleta de Retos (PRO)**: Modificadores sorpresa para el debate y ruleta de penitencias al finalizar la partida.
+- **👑 Sistema Party Pass PRO, Prueba Gratuita de 1 Ronda & Auto-Entrega de Fundadores**:
+  - Modal de la Corona dividido en **2 pestañas independientes** (`Planes VIP` | `Canjear Código`) optimizado para teclados móviles con botón **Pegar** en 1 toque.
+  - **Prueba Gratuita VIP de 1 Ronda** para que cualquier grupo pruebe todas las funciones PRO al instante.
+  - **Desbloqueo Provisional Instantáneo** al reportar una transferencia para no interrumpir la fiesta, y **Auto-Entrega del Pase Fundador Vitalicio (`#001` a `#100` + 5 Pases de Invitado de 24h)** al aprobarse el cobro.
+- **💾 Persistencia Permanente en Cloudflare KV (`IMPOSTER_KV`)**:
+  - Bóveda distribuida en el Edge que conserva permanentemente fundadores, pases de invitado, reportes de cobro, configuración bancaria, cupones de prueba y telemetría global.
+- **⚡ Rendimiento Móvil 60/120 FPS (GPU Hardware Accelerated)**:
+  - Modales desmontados dinámicamente fuera de uso, capas compuestas aceleradas por GPU (`translateZ(0)`) y navegación SPA con **0 ms de parpadeo** entre el juego y la consola administrativa.
 
 ---
 
 ## 🎯 Flujo de la Partida
 
 1. **Paso 1 — Sala de Jugadores**:
-   - Agrega los nombres de los participantes (3–6 en versión gratuita, hasta 15 en versión PRO) y mezcla el orden si lo deseas.
-   - Ajusta el número de impostores y los minutos de debate.
-2. **Paso 2 — Selección de Categoría**:
-   - Elige una tarjeta del mazo temático, selecciona **🎲 Aleatoria** o desbloquea **🔞 Fiesta +18** con tu PIN.
-3. **Fase de Revelación (_Pass & Play_)**:
-   - Pasa el teléfono siguiendo la barra de progreso superior tipo _Stories_.
-   - Cada jugador mantiene presionado el escáner biométrico para ver su palabra secreta (o su rol de Impostor / Bufón).
-4. **Fase de Debate**:
-   - El jugador inocente seleccionado por el sistema inicia la ronda diciendo una palabra relacionada.
-   - El reloj radial marca el tiempo restante y muestra el **Evento Relámpago** si está activo.
-5. **Votación & Resolución**:
-   - El grupo acusa formalmente a los sospechosos hasta atrapar a todos los impostores.
-   - Si un impostor es descubierto, tiene una **última oportunidad**: adivinar la palabra secreta para robarse la victoria.
+   - Agrega los nombres de los participantes (3–6 en versión gratuita, hasta 15 en versión PRO) o abre una **Sala Online** para jugar cada uno desde su móvil.
+2. **Paso 2 — Reglas y Roles**:
+   - Ajusta el número de impostores, el tiempo de debate y activa modificadores como **Pista Camaleón**, **El Bufón** o **Eventos Relámpago**.
+3. **Paso 3 — Selección de Categoría**:
+   - Elige una tarjeta del mazo temático, selecciona **Aleatoria** o desbloquea **Fiesta +18** con tu PIN.
+4. **Fase de Revelación (_Pass & Play_ u _Online_)**:
+   - Cada jugador mantiene presionado el escáner biométrico para ver su palabra secreta (o su tarjeta roja de Impostor / tarjeta púrpura de Bufón).
+5. **Fase de Debate**:
+   - El jugador inocente seleccionado inicia la ronda diciendo una palabra relacionada mientras corre el reloj radial con efectos de sonido Web Audio API.
+6. **Votación & Última Oportunidad**:
+   - El grupo vota para atrapar a los impostores. Si un impostor es descubierto, se activa el minijuego de **5 palabras** para intentar robar el triunfo.
 
 ---
 
-## 👑 Comparativa: Versión Normal (Gratis) vs. Party Pass PRO (Pago)
-
-> 📄 Consulta el documento dedicado **[`ROADMAP_MEJORAS.md`](./ROADMAP_MEJORAS.md)** para ver el plan detallado de próximas actualizaciones y cómo se clasifica cada mejora entre **🟢 Normal (Gratis)** y **👑 PRO (Pago)**.
+## 👑 Comparativa: Versión Normal (Gratis) vs. Party Pass PRO
 
 | Característica                           | 🟢 Normal (Gratis)                         | 👑 Party Pass PRO (Pago)                                        |
 | :--------------------------------------- | :----------------------------------------- | :-------------------------------------------------------------- |
 | **Límite de Jugadores**                  | 3 a 6 jugadores                            | **Hasta 15 jugadores** (Salas grandes)                          |
+| **Prueba Gratuita VIP**                  | **1 Ronda Completa Gratis** con todo PRO   | Acceso ilimitado durante la vigencia del pase                   |
 | **Categorías Base (150 palabras)**       | ✅ Incluidas (_Comida, Lugares, Animales_) | ✅ Incluidas                                                    |
 | **Packs PRO Exclusivos (410+ palabras)** | 🔒 Bloqueado                               | ✅ _Cine, Deportes, Geek, Objetos, Profesiones, Música, Países_ |
-| **Categoría Picante 🔞 Fiesta +18**      | 🔒 Bloqueado                               | ✅ **60 palabras para adultos** (con PIN)                       |
-| **Modos de Impostor**                    | Modo Cómplice y Modo Caos                  | + **🃏 Rol El Bufón** y **⚡ Eventos Relámpago**                |
+| **Categoría Picante Fiesta +18**         | 🔒 Bloqueado                               | ✅ **60 palabras para adultos** (con PIN)                       |
+| **Modos y Roles Especiales**             | Modo Cómplice y Modo Caos                  | + **Pista Camaleón**, **El Bufón** y **Eventos Relámpago**      |
 | **Listas Personalizadas**                | 🔒 Bloqueado                               | ✅ Creación, exportación e importación JSON                     |
-| **Invitación por Código QR**             | ✅ Incluida                                | ✅ Incluida                                                     |
+| **Salas Online & Código QR**             | ✅ Incluidas                               | ✅ Incluidas                                                    |
 
 ---
 
-## 🛡️ Seguridad y Protección (7 Blindajes Activos)
+## 🛡️ Seguridad y Protección (9 Blindajes Activos)
 
-> 📄 Consulta la guía técnica completa en **[`SEGURIDAD.md`](./SEGURIDAD.md)** para conocer en detalle la arquitectura criptográfica y de protección del proyecto.
+> 📄 Consulta la guía técnica detallada en **[`SEGURIDAD.md`](./SEGURIDAD.md)**.
 
-1. **🔒 Cero Claves en Texto Plano (Hashing SHA-256 + Anti-Fuerza Bruta)**:
-   - Ningún código promocional ni clave administrativa existe en texto plano dentro del bundle JS. Se verifican mediante `SHA-256` con sal criptográfica y bloqueo temporal tras 5 intentos fallidos.
-2. **🛡️ Tokens Firmados de Doble Nivel en `localStorage` (Anti-F12)**:
-   - El estado PRO/CEO no usa booleanos (`"true"`), sino tokens criptográficos de primer nivel validados contra un hash de segundo nivel (`sha256(VERIFY_SALT + sha256(CODE_SALT + clave))`). Copiar hashes del código fuente o escribir `"true"` en `localStorage` revoca y limpia el acceso automáticamente.
-3. **🧹 Sanitización Estricta de Packs JSON (`sanitizeImportedCategories`)**:
-   - Protege la importación de categorías contra _Prototype Pollution_ (`__proto__`, `constructor`), inyección de etiquetas HTML (`< >`), sobrescritura de categorías oficiales y desbordamiento de memoria (_DoS_).
-4. **🌐 Cabeceras HTTP Anti-Clonación (`public/_headers`)**:
-   - Configura `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` y `Permissions-Policy` en Cloudflare para impedir que sitios de terceros incrusten el juego en un `<iframe>`.
-5. **🔞 Anti-Fuerza Bruta en PIN Parental (+18)**:
-   - Bloqueo automático del teclado numérico por **60 segundos** tras **5 intentos erróneos** al intentar acceder a la sección de adultos.
-6. **🚦 Anti-Spam Rate Limiting en Pasarela de Pagos**:
-   - Máximo **3 envíos de comprobantes cada 2 minutos** por cliente en `submitPaymentProofServerFn`, previniendo ataques de saturación.
-7. **🧼 Sanitización Anti-XSS en Formularios de Cobro y Discord**:
-   - Limpieza automática de nombres de cliente, números de referencia bancaria y tags de Discord antes de procesar o despachar alertas a Webhooks.
+1. **🔒 Cero Claves en Texto Plano (Hashing SHA-256 + Anti-Fuerza Bruta)**.
+2. **🛡️ Tokens Firmados de Doble Nivel en `localStorage` (Anti-F12 Tampering)**.
+3. **🔑 Generador y Rotación Dinámica de Llave Maestra en Vivo (Revocación Instantánea)**.
+4. **💾 Bóveda Persistente en Cloudflare KV (`IMPOSTER_KV`) con Sincronización Edge**.
+5. **🕵️ Cero Exposición de Prefijos o Formatos Internos en la Ventana Pública de Canje**.
+6. **🧹 Sanitización Estricta de Packs JSON (`sanitizeImportedCategories`)**.
+7. **🌐 Cabeceras HTTP Anti-Clonación (`public/_headers`)**.
+8. **🔞 Anti-Fuerza Bruta en PIN Parental (+18)**.
+9. **🚦 Anti-Spam Rate Limiting y Sanitización Anti-XSS en Pasarela de Pagos**.
 
 ---
 
@@ -112,37 +106,30 @@ npm run dev
 
 Accede en tu navegador a: `http://localhost:8080`
 
-### **Ejecutar el Bot Atlas Localmente**
+### **Ejecutar Pruebas y Linter**
 
 ```bash
-npm run bot
-```
-
-### **Ejecutar Pruebas Automatizadas**
-
-```bash
+npm run lint
 npm test
 ```
 
-### **Despliegue a Producción**
+### **Despliegue a Producción (Cloudflare Workers + KV)**
 
-- **📱 App Web / PWA (Cloudflare Workers)**:
-  Compila y despliega la aplicación a la URL pública oficial (`https://imposter.manu-07games.workers.dev`):
-  ```bash
-  npm run deploy
-  ```
-- **🤖 Bot de Discord Atlas (Render Cloud)**:
-  Alojado en Render (`https://atlas-bot-2xh4.onrender.com`). Se actualiza y despliega **automáticamente** en cada `git push origin main`. Cuenta con latido interno Keep-Alive para permanecer despierto 24/7 sin costo.
+Compila la aplicación, inyecta automáticamente el enlace a `IMPOSTER_KV` en `.output/server/wrangler.json` y despliega en `https://imposter.manu-07games.workers.dev`:
+
+```bash
+npm run deploy
+```
 
 ---
 
 ## 🏗️ Stack Tecnológico
 
 - **Frontend & SSR**: React 19 + TypeScript + TanStack Start (Router + SSR)
-- **Estilos & Motion**: Tailwind CSS v4 + Glassmorphism + Keyframes personalizados
-- **Iconografía**: Lucide React
+- **Estilos & Motion**: Tailwind CSS v4 + Animaciones aceleradas por GPU (`translateZ(0)`)
+- **Iconografía**: Lucide React (100% libre de emojis en la interfaz)
 - **Audio Engine**: Web Audio API sintetizada (_zero-asset / zero-latency_)
-- **Bundler & PWA**: Vite + Workbox + Service Worker nativo + Screen Wake Lock
-- **Edge Deployment**: Cloudflare Workers (vía Nitro + Wrangler)
-- **Bot & Copiloto IA**: Discord.js v14 + Google Gemini Flash Lite + OpenRouter + Groq Cloud en Render
+- **Bundler & PWA**: Vite + Service Worker nativo + Screen Wake Lock
+- **Edge Runtime & Base de Datos**: Cloudflare Workers + Cloudflare KV (`IMPOSTER_KV`)
+- **Bot & Copiloto IA**: Discord.js v14 + Google Gemini Flash Lite + OpenRouter + Groq Cloud en Render (`https://atlas-bot-2xh4.onrender.com`)
 - **Testing**: Vitest + Testing Library

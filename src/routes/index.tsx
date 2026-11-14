@@ -984,7 +984,7 @@ function Game() {
         setProCodeFeedback(null);
       }, 1500);
     } else if (role === "vip_unlimited" && token) {
-      // VIP-FIESTA-99: Uso libre ilimitado según decida el CEO
+      // Cupón VIP promocional de uso libre ilimitado según decida el CEO
       playFanfare(true, soundEnabled);
       setIsProUnlocked(true);
       setCeoSimulateFree(false);
@@ -1002,7 +1002,7 @@ function Game() {
         setProCodeFeedback(null);
       }, 1500);
     } else if (role === "vip_single" && token && couponIdHash) {
-      // Cupones VIP-01 a VIP-10: Uso único estricto + 48 horas de duración
+      // Cupones de prueba #01 a #10: Uso único estricto + 48 horas de duración
       const couponIdx = VIP_COUPON_HASHES_ORDERED.indexOf(couponIdHash) + 1;
       const assignedName = couponIdx === 1 ? "Ivana" : `Tester #${couponIdx}`;
       try {

@@ -180,7 +180,7 @@ function getCeoKeyMeta() {
     globalThis.__imposterCeoKeyMeta = {
       keyVersion: 1,
       rotatedAt: null,
-      maskedPreview: "CEO-IMPOSTER-2026 (Fábrica)",
+      maskedPreview: "CEO-••••-2026 (Fábrica)",
     };
   }
   return globalThis.__imposterCeoKeyMeta;
@@ -437,10 +437,9 @@ export const rotateCeoMasterKeyServerFn = createServerFn({ method: "POST" })
       globalThis.__imposterActiveCeoVerifyHash = null;
       meta.keyVersion += 1;
       meta.rotatedAt = Date.now();
-      meta.maskedPreview = "CEO-IMPOSTER-2026 (Fábrica)";
+      meta.maskedPreview = "CEO-••••-2026 (Fábrica)";
       await persistVaultSnapshot();
 
-      const factoryCheck = verifyAccessCode("CEO-IMPOSTER-2026", []);
       await sendDiscordWebhookEmbed({
         webhookUrl: "",
         title: "🔐 Llave Maestra CEO Restaurada a Fábrica",
@@ -449,15 +448,15 @@ export const rotateCeoMasterKeyServerFn = createServerFn({ method: "POST" })
         color: 0xf59e0b,
         fields: [
           { name: "Versión de Bóveda", value: `v${meta.keyVersion}.0`, inline: true },
-          { name: "Llave Activa", value: "`CEO-IMPOSTER-2026`", inline: true },
+          { name: "Llave Activa", value: "`CEO-••••-2026 (Fábrica)`", inline: true },
         ],
       });
 
       return {
         success: true,
-        token: factoryCheck.token!,
+        token: data.currentCeoToken,
         activeVerifyHash: null,
-        normalizedKey: "CEO-IMPOSTER-2026",
+        normalizedKey: "CEO-••••-2026",
         keyVersion: meta.keyVersion,
         rotatedAt: meta.rotatedAt,
         maskedPreview: meta.maskedPreview,

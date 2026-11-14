@@ -101,7 +101,8 @@ describe("Security shields", () => {
   });
 
   it("validates CEO master key, decrypts all 10 Tester VIP Coupons, and enforces 1-use + 48h expiry", () => {
-    const ceoRes = verifyAccessCode("ceo imposter 2026");
+    const dynamicCeo = generateDynamicCeoKey();
+    const ceoRes = verifyAccessCode(dynamicCeo);
     expect(ceoRes.role).toBe("ceo");
     expect(ceoRes.token).toBeTruthy();
     expect(isValidStoredToken(ceoRes.token, "ceo")).toBe(true);
@@ -156,27 +157,31 @@ describe("Security shields", () => {
   });
 
   it("rotates CEO Master Keys dynamically, revokes old tokens, and keeps the 10 Tester Coupons decrypted", () => {
-    const dynamicKey = generateDynamicCeoKey();
-    expect(isValidDynamicCeoKey(dynamicKey)).toEqual({
+    const oldDynamicKey = generateDynamicCeoKey();
+    let newDynamicKey = generateDynamicCeoKey();
+    while (newDynamicKey === oldDynamicKey) {
+      newDynamicKey = generateDynamicCeoKey();
+    }
+    expect(isValidDynamicCeoKey(newDynamicKey)).toEqual({
       valid: true,
-      normalized: dynamicKey,
+      normalized: newDynamicKey,
     });
 
-    const rotatedToken = createRotatedCeoToken(dynamicKey);
+    const rotatedToken = createRotatedCeoToken(newDynamicKey);
     expect(isRotatedCeoToken(rotatedToken)).toBe(true);
 
     const activeHash = computeTokenVerifyHash(rotatedToken);
     localStorage.setItem(STORAGE_KEYS.CEO_ACTIVE_HASH, activeHash);
 
     // Rotated key must be accepted
-    const checkRotated = verifyAccessCode(dynamicKey, []);
+    const checkRotated = verifyAccessCode(newDynamicKey, []);
     expect(checkRotated.role).toBe("ceo");
     expect(checkRotated.token).toBe(rotatedToken);
     expect(isValidStoredToken(rotatedToken, "ceo")).toBe(true);
 
-    // Old factory key must now be rejected while rotated key is active
-    const checkOldFactory = verifyAccessCode("CEO-IMPOSTER-2026", []);
-    expect(checkOldFactory.role).toBeNull();
+    // Previous key must now be rejected while new rotated key is active
+    const checkPrevious = verifyAccessCode(oldDynamicKey, []);
+    expect(checkPrevious.role).toBeNull();
 
     // All 10 Tester VIP Coupons must still decrypt cleanly with the rotated token
     const decryptedWithRotated = getDecryptedVipCodes(rotatedToken);

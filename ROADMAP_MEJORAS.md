@@ -1,181 +1,51 @@
-# 🚀 Roadmap de Mejoras y Estrategia Freemium — Imposter
+# 🚀 Roadmap de Mejoras y Estado del Producto — Imposter (v2.0.1)
 
-Este documento detalla el estado actual de las funciones del juego y la hoja de ruta (**Roadmap**) con las nuevas mejoras propuestas, especificando claramente cuáles pertenecen al nivel **Gratis (Normal)** y cuáles son exclusivas de **👑 Party Pass PRO (Pago)**, junto con la justificación comercial de cada una.
-
----
-
-## 📊 1. Clasificación de Funciones Actuales (Implementadas)
-
-| Función / Característica                            |         Nivel          | Comentario / Justificación Estratégica                                                                                                         |
-| :-------------------------------------------------- | :--------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Salas de 3 a 6 Jugadores**                        | 🟢 **Normal (Gratis)** | Permite que grupos pequeños prueben el juego completo sin fricción y se enganchen.                                                             |
-| **Salas Grandes de 7 a 15 Jugadores**               |   👑 **PRO (Pago)**    | _Principal motor de conversión_: En fiestas reales siempre llegan más de 6 amigos; entre todos pagan \$0.99 (24h) o \$1.99 (72h) sin pensarlo. |
-| **3 Categorías Esenciales (150 palabras)**          | 🟢 **Normal (Gratis)** | _Comida, Lugares, Animales_. Base ideal para probar la dinámica y engancharse al juego.                                                        |
-| **8 Categorías Premium & Temáticas (410 palabras)** |   👑 **PRO (Pago)**    | _Deportes, Cine y Series, Profesiones, Objetos, Videojuegos, Música, Países y Fiesta +18_. Paquete de contenido masivo para monetizar.         |
-| **Modo Cómplice / Modo Caos**                       | 🟢 **Normal (Gratis)** | Regla base cuando hay 2+ impostores para mantener partidas dinámicas en el plan gratuito.                                                      |
-| **🃏 Rol Especial: El Bufón**                       |   👑 **PRO (Pago)**    | Rol avanzado que cambia por completo la psicología del voto; ideal como recompensa VIP.                                                        |
-| **⚡ Eventos Relámpago de Ronda**                   |   👑 **PRO (Pago)**    | Modificadores de debate (_Mímica, Doble Pista, Rostro de Póker_) que agregan valor premium.                                                    |
-| **Creador e Importador de Listas Propias**          |   👑 **PRO (Pago)**    | Permite personalizar el juego con bromas internas del grupo o temáticas a medida.                                                              |
-| **Botón QR para Invitar Amigos**                    | 🟢 **Normal (Gratis)** | _Motor de adquisición viral_: Siempre debe ser gratis para que cada jugador traiga más usuarios a la app.                                      |
-| **Acceso Maestro & Panel Ejecutivo CEO**            |    🛡️ **Admin CEO**    | Exclusivo mediante la clave privada (`CEO_CONFIDENCIAL.md`) para ver analíticas, cupones VIP y simular el paywall.                             |
-| **🤖 Atlas (Bot & Copiloto IA en Discord)**         |    🛡️ **Admin CEO**    | Asistente de inteligencia artificial 24/7 en Render con Gemini Flash Lite para asesoría ejecutiva y soporte a jugadores.                       |
-| **🛰️ Telemetría y Radar en Vivo (#metricas)**       |    🛡️ **Admin CEO**    | Captura de partidas, dispositivos (Android/iOS) y PWA enviadas a Discord `#metricas-imposter` y al panel CEO.                                  |
-| **🛡️ Blindaje de Seguridad de 7 Capas**             | 🟢 **Infraestructura** | Anti-fuerza bruta en PIN +18, tokens SHA-256 de doble nivel, rate-limit en pagos y sanitización anti-XSS.                                      |
+Este documento resume el estado actual de todas las funciones implementadas en **Imposter (`v2.0.1`)** y cómo se estructura la experiencia entre **🟢 Normal (Gratis)** y **👑 Party Pass PRO (Pago)**.
 
 ---
 
-## 🎯 2. Propuestas de Nuevas Mejoras (Próximas Fases)
+## 📊 1. Matriz Completa de Funciones Implementadas (`v2.0.1`)
 
-A continuación se listan las mejoras recomendadas divididas por categoría, indicando si deben ser **🟢 Normales (Gratis)** para mejorar la experiencia base y viralidad, o **👑 PRO (Pago)** para aumentar las ventas del _Party Pass_.
-
----
-
-### 🎮 Bloque A: Jugabilidad y Tensión en la Fiesta
-
-#### 1. 🎲 Ruleta de Castigos / Retos de Fiesta (Al finalizar la ronda)
-
-- **Clasificación**: **Mixto (Básico 🟢 Gratis / Modo Picante & Personalizable 👑 PRO)**
-- **¿En qué consiste?**: En la pantalla de resultados, un botón **"🎲 Girar Reto para el Perdedor"** que asigna una penitencia divertida al impostor descubierto (o al grupo si ganó el impostor).
-- **Comentario de Monetización**:
-  - **🟢 Gratis**: 10 retos blancos/familiares (_"Habla con acento extranjero la próxima ronda"_, _"Haz 10 sentadillas"_, _"Cuenta un chiste malo"_).
-  - **👑 PRO**: Desbloquea el mazo de **Retos de Fiesta / Shots (+18)** (_"Toma un trago"_, _"Muestra la última foto de tu galería"_, _"Verdad o Reto elegido por el ganador"_) y permite escribir castigos propios.
-
-#### 2. 🎭 Modo "Palabra Gemela / Impostor Encubierto"
-
-- **Clasificación**: **👑 PRO (Pago)**
-- **¿En qué consiste?**: En lugar de que la tarjeta diga `"¡ERES EL IMPOSTOR!"`, el impostor recibe una palabra casi idéntica a la de los inocentes (ejemplo: los inocentes ven **"Playa"** y el impostor ve **"Piscina"**; o inocentes **"Perro"** e impostor **"Lobo"**).
-- **Comentario de Monetización**:
-  - Es una mecánica estrella exclusiva de **👑 PRO** porque cambia radicalmente el juego: nadie en la sala (ni siquiera el propio impostor al principio) sabe quién tiene la palabra diferente hasta que empiezan las pistas.
-
-#### 3. 🛡️ Nuevo Rol Especial: "El Detective / Cómplice Inocente"
-
-- **Clasificación**: **👑 PRO (Pago)**
-- **¿En qué consiste?**: En partidas de 5 o más jugadores, un inocente al azar recibe el rol de **Detective** y su escáner le revela el nombre de **1 jugador que es 100% inocente comprobado**.
-- **Comentario de Monetización**:
-  - Se suma a la sección `Reglas de Partida` junto a _El Bufón_ con etiqueta **👑 PRO**, haciendo que el paquete de pago sea aún más irresistible para grupos grandes.
-
-#### 4. 💣 Modo "Bomba de Tiempo" en el Debate
-
-- **Clasificación**: **👑 PRO (Pago)**
-- **¿En qué consiste?**: Variante del temporizador donde suena un _tic-tac_ que se acelera. Cada jugador dice su palabra y toca el centro de la pantalla para pasar el turno; a quien le explote la bomba por tardar demasiado recibe automáticamente **1 voto de penalización**.
-- **Comentario de Monetización**:
-  - Ideal como interruptor **👑 PRO** dentro de las reglas de debate para grupos que buscan partidas ultra rápidas y llenas de adrenalina.
+| Función / Característica                                      |         Nivel          | Estado en Producción |
+| :------------------------------------------------------------ | :--------------------: | :------------------: |
+| **Wizard de Configuración en 3 Pasos (Jugadores / Reglas / Categorías)** | 🟢 **Normal (Gratis)** | ✅ **Activo** |
+| **Salas Presenciales de 3 a 6 Jugadores**                     | 🟢 **Normal (Gratis)** | ✅ **Activo** |
+| **Salas Grandes de 7 a 15 Jugadores**                         |   👑 **PRO (Pago)**    | ✅ **Activo** |
+| **Prueba Gratuita VIP de 1 Ronda Completa**                   | 🟢 **Normal (Gratis)** | ✅ **Activo** |
+| **Salas Online Multijugador en Tiempo Real (Código 4 Letras)**| 🟢 **Normal (Gratis)** | ✅ **Activo** |
+| **Tarjeta Roja Garantizada del Impostor en Escáner**          | 🟢 **Normal (Gratis)** | ✅ **Activo** |
+| **Pista Camaleón (Palabra Señuelo para el Impostor)**         |   👑 **PRO (Pago)**    | ✅ **Activo** |
+| **Minijuego de Última Oportunidad (5 Palabras en Botones)**   | 🟢 **Normal (Gratis)** | ✅ **Activo** |
+| **3 Categorías Esenciales (150 palabras)**                    | 🟢 **Normal (Gratis)** | ✅ **Activo** |
+| **8 Categorías Premium & Fiesta +18 (+410 palabras)**         |   👑 **PRO (Pago)**    | ✅ **Activo** |
+| **Rol Especial: El Bufón**                                    |   👑 **PRO (Pago)**    | ✅ **Activo** |
+| **Eventos Relámpago de Ronda y Ruleta de Retos**              |   👑 **PRO (Pago)**    | ✅ **Activo** |
+| **Creador e Importador de Listas Propias (JSON)**             |   👑 **PRO (Pago)**    | ✅ **Activo** |
+| **Desbloqueo Provisional Instantáneo al Reportar Pago**       | 🟢 **Conversión VIP**  | ✅ **Activo** |
+| **Auto-Entrega de Pase Fundador (`#001`–`#100`) + 5 Pases Invitado** | 👑 **Fundador VIP** | ✅ **Activo** |
+| **Ventana de la Corona en 2 Pestañas (`Planes VIP` \| `Canjear Código`)** | 🟢 **UX Móvil** | ✅ **Activo** |
+| **Memoria Permanente en Cloudflare KV (`IMPOSTER_KV`)**       | 🛡️ **Infraestructura** | ✅ **Activo** |
+| **Panel Ejecutivo `/ceo` Cero-Parpadeo + Generador Llave CEO**|    🛡️ **Admin CEO**    | ✅ **Activo** |
+| **Optimización Móvil 60/120 FPS (GPU Accelerated)**           | 🛡️ **Rendimiento**     | ✅ **Activo** |
 
 ---
 
-### 📱 Bloque B: Experiencia Nativa en Android & iPhone (Calidad App Store) ✅ IMPLEMENTADO
+## 🏆 2. Hitos Completados en `v2.0.0` y `v2.0.1`
 
-#### 5. 🔆 Wake Lock Automático (Pantalla Siempre Encendida) ✅
+### ✅ Bloque A: Jugabilidad y Mecánicas de Fiesta
+1. **Tarjeta Roja Garantizada + Pista Camaleón**: El impostor siempre identifica claramente su rol con la tarjeta roja y, si la Pista Camaleón está activa, recibe una palabra señuelo para camuflarse en el debate.
+2. **Minijuego de 5 Opciones para el Impostor Descubierto**: Cuando el grupo atrapa al impostor, este puede robar la victoria eligiendo la palabra secreta correcta entre 5 opciones táctiles de la misma categoría.
+3. **Salas Online Multijugador (`OnlineRoomModal.tsx` & `room-server.ts`)**: Permite jugar a distancia sincronizando fases, cartas individuales y votaciones en tiempo real.
+4. **Ruleta de Retos de Fiesta**: Penitencias familiares en modo normal y retos picantes en modo PRO al finalizar cada partida.
 
-- **Estado**: **🟢 Implementado y Activo**
-- **Clasificación**: **🟢 Normal (Gratis)**
-- **¿En qué consiste?**: Integración completa con `navigator.wakeLock` en `src/lib/wake-lock.ts` que mantiene la pantalla encendida automáticamente durante las fases activas de juego (`reveal`, `discuss`, `vote`, `result`) y la libera en el menú (`setup`). Con reconexión automática en `visibilitychange` e indicador visual en el debate.
+### ✅ Bloque B: Monetización sin Fricción y Bóveda Permanente
+5. **Prueba Gratuita VIP de 1 Ronda**: Cualquier grupo puede probar todas las funciones PRO durante 1 partida completa con 1 toque.
+6. **Acceso Provisional Instantáneo + Auto-Entrega de Fundadores**:
+   - Al enviar la referencia de Pago Móvil o Binance Pay, el jugador recibe acceso inmediato para seguir jugando mientras el CEO aprueba el cobro.
+   - Al aprobar un pago de **Edición Fundador Vitalicio (\$9.99)** en `/ceo`, el servidor asigna automáticamente su número correlativo (`#001` a `#100`), genera su código `FNDR-XXXX` y le entrega en su pantalla sus **5 Pases de Invitado de 24h**.
+7. **Persistencia Permanente en Cloudflare KV (`IMPOSTER_KV`)**: Todos los pagos, fundadores, cupones de testers, configuraciones de cobro y métricas quedan respaldados permanentemente en la nube de Cloudflare.
 
-#### 6. 📲 Botón / Banner Nativo "Instalar App en el Teléfono" (PWA) ✅
-
-- **Estado**: **🟢 Implementado y Activo**
-- **Clasificación**: **🟢 Normal (Gratis)**
-- **¿En qué consiste?**: Detección inteligente de plataforma en `src/lib/pwa-install.ts`:
-  - **Android / Chromium**: Instalación nativa en 1 toque mediante captura de `beforeinstallprompt`.
-  - **iPhone & iPad (Safari)**: Modal interactivo con guía gráfica paso a paso (`Compartir ⎋` ➔ `Añadir a pantalla de inicio ➕`).
-  - **Detección Standalone**: Oculta botones o muestra insignia `✅ App Instalada` si ya se ejecuta como app nativa.
-  - Accesos en: Barra superior (Header), Menú de Configuración y Modal de Invitar Amigos (QR).
-
-#### 7. 🎊 Explosión de Confeti y Partículas en la Pantalla de Victoria ✅
-
-- **Estado**: **🟢 Implementado y Activo**
-- **Clasificación**: **🟢 Normal (Gratis)**
-- **¿En qué consiste?**: Motor de partículas ultra-fluido en HTML5 Canvas (`src/lib/confetti.tsx`) a 60 FPS con físicas reales (gravedad, fricción y rotación 3D) y paletas de color temáticas:
-  - 🏆 **Victoria Inocente**: Lluvia festiva de oro, champagne y destellos celestes.
-  - 🩸 **Victoria Impostor**: Destellos carmesí, rubí y brasas de volcán.
-  - 🃏 **Victoria del Bufón**: Lluvia eléctrica de púrpura, violeta y fucsia.
-
----
-
-### ⚡ Bloque D: Rendimiento Móvil & Panel Ejecutivo CEO ✅ IMPLEMENTADO
-
-#### 8. 🏎️ Scroll Ultra-Fluido a 60 FPS en Navegadores Móviles (Firefox Android & Safari) ✅
-
-- **Estado**: **🟢 Implementado y Activo**
-- **Clasificación**: **🟢 Normal (Gratis)**
-- **¿En qué consiste?**: Optimización del motor de renderizado CSS eliminando los filtros de desenfoque (`backdrop-filter: blur`) dentro de contenedores con `overflow-y: auto`, reemplazándolos con capas sólidas translúcidas `oklch(0.19 0.035 250 / 0.96)`. Esto permite que el motor Gecko de Firefox active el desplazamiento asíncrono por hardware (APZ), eliminando cualquier tirón o lentitud táctil.
-
-#### 9. 🔊 Motor de Audio Sintetizado Web Audio API (Cero Latencia) ✅
-
-- **Estado**: **🟢 Implementado y Activo**
-- **Clasificación**: **🟢 Normal (Gratis)**
-- **¿En qué consiste?**: Generador acústico procedural que sintetiza clicks mecánicos, tonos de victoria y alertas usando osciladores nativos del navegador. Funciona 100% offline, sin descargar archivos de audio pesados y sin bloqueos de reproducción en dispositivos móviles.
-
-#### 10. 👑 Panel Ejecutivo CEO Modernizado & Monitor VIP con Cuenta Regresiva Real ✅
-
-- **Estado**: **🟢 Implementado y Activo**
-- **Clasificación**: **🛡️ Admin CEO**
-- **¿En qué consiste?**:
-  - Modal dedicado e independiente (accesible con 1 tap sobre la corona dorada).
-  - Cálculo temporal exacto en horas y minutos (`Restan 30h 35m`) con barra de progreso visual de consumo para cada tester.
-  - Canje ultra-rápido por URL (`?code=VIP-...`).
-  - Integración nativa con Webhooks de Discord para alertas de canje instantáneas al móvil del CEO.
-  - Herramientas de invitación directa con botones de WhatsApp y Copiar Enlace para cada cupón.
-
-#### 11. 💳 Pantalla de Checkout Multimoneda & Cobros en Vivo ✅
-
-- **Estado**: **🟢 Implementado y Activo**
-- **Clasificación**: **🟢 Pagos & Monetización**
-- **¿En qué consiste?**:
-  - **Checkout Interactivo**: Al pulsar _"OBTENER PARTY PASS"_, el comprador puede elegir entre:
-    1. 🇻🇪 **Pago Móvil**: Monto calculado en Bolívares con tasa de referencia, datos bancarios con copia rápida y botón para enviar comprobante a WhatsApp.
-    2. 🟡 **Binance Pay (USDT)**: Pay ID, Nickname, monto exacto en USDT y notificación instantánea por WhatsApp.
-    3. 💳 **Tarjetas Internacionales**: Soporte para links directos de Whop / Stripe con Apple Pay y tarjetas de crédito/débito.
-  - **Configuración Dinámica desde Panel CEO**: El CEO puede cambiar sus números, banco, tasa y Pay ID en cualquier momento desde su teléfono sin tocar código.
-
-#### 12. 🤖 Atlas — Copiloto de IA y Bot Oficial de Discord ✅
-
-- **Estado**: **🟢 Implementado y Activo**
-- **Clasificación**: **🛡️ Admin CEO & Comunidad**
-- **¿En qué consiste?**:
-  - Desplegado en **Render Cloud** 24/7 con pulso **Keep-Alive** anti-suspensión.
-  - Motor de triple inteligencia artificial: **Google Gemini Flash Lite** (principal), **OpenRouter LLaMA 3.3 / DeepSeek** (respaldo) y **Groq Cloud**.
-  - Canal `#despacho-ceo`: Conversación directa y honesta con el CEO con inyección del estado real del producto en vivo.
-  - Canales `#soporte-o-dudas` y `#fundador-vip` para atención automática a clientes.
-
-#### 13. 🛰️ Radar de Telemetría en Vivo (Nivel A & Nivel B) ✅
-
-- **Estado**: **🟢 Implementado y Activo**
-- **Clasificación**: **🛡️ Admin CEO**
-- **¿En qué consiste?**:
-  - **Nivel A**: Notificaciones enriquecidas inmediatas en Discord `#metricas-imposter` ante cada partida iniciada, concluida o PWA instalada.
-  - **Nivel B**: Pestaña **Métricas** en el panel CEO del juego con desglose por sistema operativo (**Android**, **iPhone / iOS**, **Desktop**), top de categorías y feed reciente.
-  - Cero PII, cero recolección de IPs y ejecución asíncrona ("fire-and-forget") con 0 ms de retraso en celulares.
-
-#### 14. 🛡️ Blindajes de Seguridad Avanzados ✅
-
-- **Estado**: **🟢 Implementado y Activo**
-- **Clasificación**: **🟢 Seguridad e Infraestructura**
-- **¿En qué consiste?**:
-  - **Anti-Fuerza Bruta en PIN Parental (+18)**: Bloqueo de teclado numérico por 60 segundos tras 5 intentos fallidos.
-  - **Anti-Spam Rate Limiting en Pagos**: Máximo 3 envíos de comprobantes cada 2 minutos en `coupon-server.ts`.
-  - **Sanitización Estricta Anti-XSS**: Purga de caracteres `< >` y validación de referencias bancarias.
-
----
-
-### 🌍 Bloque E: Crecimiento Viral y Adquisición Orgánica
-
-#### 11. 📸 Tarjeta "Compartir Resumen de Partida en Stories"
-
-- **Clasificación**: **🟢 Normal (Gratis)**
-- **¿En qué consiste?**: En la pantalla final (`phase === "result"`), añadir un botón **"📸 Compartir Victoria"** que genera una tarjeta visual lista para enviar por WhatsApp o subir a Instagram Stories (ej. _"🕵️ Carlos engañó a 8 amigos con la palabra TEQUILA en Impostor"_ + el código QR del juego).
-- **Comentario de Monetización**:
-  - **Debe ser 🟢 Gratis (Marketing Viral Gratuito)**: Cada vez que un grupo comparte su resultado en redes sociales o grupos de WhatsApp, te hace publicidad gratuita ante decenas de amigos nuevos.
-
----
-
-## 🗺️ Orden de Implementación Sugerido
-
-1. **Fase 1 (Esenciales Móviles — 🟢 Gratis)**:
-   - 🔆 _Wake Lock Automático_ (que no se apague el celular en el debate) + 🎊 _Confeti de Victoria_ + 📲 _Botón Instalar App_.
-2. **Fase 2 (Diversión de Fiesta — Mixto 🟢 Gratis / 👑 PRO)**:
-   - 🎲 _Ruleta de Castigos / Retos de Fiesta_ al terminar cada ronda (retos suaves gratis y retos picantes/+18 en PRO).
-3. **Fase 3 (Expansión VIP — 👑 PRO)**:
-   - 🎭 _Modo Palabra Gemela (Impostor Encubierto)_ + 🛡️ _Rol El Detective_.
-4. **Fase 4 (Viralidad en Redes — 🟢 Gratis)**:
-   - 📸 _Generador de Tarjeta de Victoria para WhatsApp / Instagram Stories_.
+### ✅ Bloque C: Experiencia Móvil 60/120 FPS y Seguridad
+8. **Separación de Pestañas en la Corona (`PaywallModal.tsx`)**: Pestaña exclusiva para `Canjear Código` alineada en la parte superior para que el teclado móvil nunca tape el botón de activación, con botón **Pegar** y cero exposición de formatos internos.
+9. **Transición SPA Cero-Parpadeo en `/ceo`**: Carga instantánea en el Frame 0 combinando `loaderData` y `localStorage` sin recargas de página.
+10. **Aceleración por Hardware GPU**: Modales desmontados cuando están cerrados y animaciones promovidas a capas GPU (`will-change`, `translateZ(0)`).

@@ -112,10 +112,10 @@ const CEO_VERIFY_HASHES = new Set([
   "5cd20db932697e488ab667d8a1297f994f23df925a29bd7cb01074e503b9cfe3",
 ]);
 
-// Cupón VIP multi-uso ilimitado (controlado por el CEO: VIP-FIESTA-99)
+// Cupón VIP multi-uso ilimitado (controlado por el CEO)
 const VIP_UNLIMITED_HASH = "8523782c1795c0fa05d5ae558254ff2297fcaf66c7d43c25050fc44e79586582";
 
-// 10 Cupones VIP de 1 solo uso para sujetos de prueba (VIP-01 a VIP-10)
+// 10 Cupones VIP de 1 solo uso para sujetos de prueba (#01 a #10)
 export const VIP_COUPON_HASHES_ORDERED = [
   "2cdab88d098bfede40e38a9111c08f70168be515988fe433de30ff6a83ed5b78", // #01 (Ivana)
   "64dcfd5399ddc201e6e6d0b97d850858bd1fd57c65829d38442d2c6b7810a981", // #02
@@ -131,17 +131,18 @@ export const VIP_COUPON_HASHES_ORDERED = [
 
 // Cifrado criptográfico de códigos VIP exclusivo en memoria para la consola del CEO.
 // Ningún código existe en texto plano en el bundle cliente (Zero-Plaintext).
+const VIP_VAULT_CIPHER_SEED = "9f4b2c8e1a7d3f6b5c0e9a2d4f8b1c7e3a5d9f0b2c4e6a8d1f3b5c7e9a0d2f4b";
 const ENCRYPTED_VIP_CODES = [
-  "cd632d3195350385593f",
-  "a0db949a90254e9f265c",
-  "d1903b2eea5e29bf2ae3",
-  "45a4197f143361930a3f",
-  "0d8276d7a3a1c2e6b617",
-  "c4b741b7b44c37716a40",
-  "1a1d28eaf1fc29d42763",
-  "3c1d4317f91cac74ae0b",
-  "af8f58a027f98c13f33a",
-  "6126abf1774d957cdaa1",
+  "726c91c38c30cb60903a",
+  "0a8c2c6a4859c8355d1a",
+  "ac7fccbe72f15e2b64eb",
+  "ba97f5e92299d6ce1b52",
+  "0bf17f64328dc0a8f132",
+  "28391fd40dccbf38bdc3",
+  "91e58e27f7309eeab941",
+  "92a75e2ea501d113c8d4",
+  "a66f1c385ae92dd3ccec",
+  "3f137a9240a5f7cfb56b",
 ];
 
 function pureXorDecrypt(hex: string, keyHex: string): string {
@@ -163,10 +164,9 @@ function pureXorDecrypt(hex: string, keyHex: string): string {
 export function getDecryptedVipCodes(ceoToken: string | null): string[] {
   if (!isValidStoredToken(ceoToken, "ceo")) return [];
 
-  const vaultMasterToken = sha256(CODE_SALT + "CEO-IMPOSTER-2026");
   const list: string[] = [];
   for (let i = 0; i < ENCRYPTED_VIP_CODES.length; i++) {
-    const subkey = sha256(`${vaultMasterToken}:${i + 1}`);
+    const subkey = sha256(`${VIP_VAULT_CIPHER_SEED}:${i + 1}`);
     const code = pureXorDecrypt(ENCRYPTED_VIP_CODES[i]!, subkey);
     if (/^VIP-\d{2}-[A-Z0-9]{3}$/.test(code)) {
       list.push(code);
@@ -361,18 +361,12 @@ export interface AccessCodeVerificationResult {
 /**
  * Normaliza cualquier formato de código de acceso ingresado por testers o usuarios
  * (mayúsculas/minúsculas, con o sin guiones, con o sin espacios) al formato canónico.
- * Ejemplos:
- * - "vip01k9x" | "VIP 01 K9X" | "VIP-1-K9X" -> "VIP-01-K9X"
- * - "vipfiesta99" | "VIP FIESTA 99" -> "VIP-FIESTA-99"
- * - "ceoimposter2026" | "CEO IMPOSTER 2026" -> "CEO-IMPOSTER-2026"
- * - "fndr0001a7b2" -> "FNDR-0001-A7B2"
- * - "fndr0001p19b4" -> "FNDR0001-P1-9B4"
  */
 export function normalizeAccessCodeInput(raw: string): string {
   if (!raw || typeof raw !== "string") return "";
   const cleaned = raw.trim().toUpperCase().replace(/\s+/g, "");
 
-  // Cupones VIP de prueba (VIP-01 a VIP-10)
+  // Cupones de prueba numerados (prefijo + 2 dígitos + 3 caracteres)
   const vipTesterMatch = cleaned.match(/^VIP-?0?([1-9]|10)-?([A-Z0-9]{3})$/);
   if (vipTesterMatch) {
     const num = vipTesterMatch[1]!.padStart(2, "0");
@@ -380,16 +374,10 @@ export function normalizeAccessCodeInput(raw: string): string {
     return `VIP-${num}-${suffix}`;
   }
 
-  // Cupón VIP ilimitado
-  const vipFiestaMatch = cleaned.match(/^VIP-?FIESTA-?99$/);
-  if (vipFiestaMatch) {
-    return "VIP-FIESTA-99";
-  }
-
-  // Clave maestra CEO de fábrica
-  const ceoMatch = cleaned.match(/^CEO-?IMPOSTER-?2026$/);
-  if (ceoMatch) {
-    return "CEO-IMPOSTER-2026";
+  // Formato de 3 segmentos alfanuméricos (ej. XXX-XXXXXX-99 o XXX-XXXXXXXX-2026)
+  const threeSegmentMatch = cleaned.match(/^([A-Z]{3})-?([A-Z]{4,10})-?(\d{2,4})$/);
+  if (threeSegmentMatch) {
+    return `${threeSegmentMatch[1]}-${threeSegmentMatch[2]}-${threeSegmentMatch[3]}`;
   }
 
   // Llave maestra CEO dinámica firmada (CEO-XXXX-YYYY)
@@ -416,7 +404,7 @@ export function normalizeAccessCodeInput(raw: string): string {
 /**
  * Verifica un código ingresado por el usuario sin exponer las claves en texto plano.
  * - "ceo": Acceso maestro ilimitado.
- * - "vip_unlimited": Cupón VIP-FIESTA-99 de uso libre ilimitado.
+ * - "vip_unlimited": Cupón VIP promocional de uso libre ilimitado.
  * - "vip_single": Cupón de tester de 1 solo uso y 48 horas de duración.
  * - "founder": Pase Fundador Vitalicio (FNDR-XXXX-YYYY).
  * - "guest_pass": Pase de Embajador 24h de un fundador (FNDRXXXX-PX-YYY).
