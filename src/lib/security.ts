@@ -157,17 +157,16 @@ function pureXorDecrypt(hex: string, keyHex: string): string {
 
 /**
  * Descifra en memoria la lista de códigos VIP única y exclusivamente si el usuario
- * posee un token de CEO válido y verificado. Si alguien no es CEO o no tiene la clave,
- * devuelve un array vacío.
+ * posee un token de CEO válido y verificado. Funciona tanto con la llave original
+ * como con cualquier llave maestra rotada dinámicamente por el CEO.
  */
 export function getDecryptedVipCodes(ceoToken: string | null): string[] {
-  if (!ceoToken || typeof ceoToken !== "string" || ceoToken.length !== 64) return [];
-  const verifyHash = sha256(VERIFY_SALT + ceoToken);
-  if (!CEO_VERIFY_HASHES.has(verifyHash)) return [];
+  if (!isValidStoredToken(ceoToken, "ceo")) return [];
 
+  const vaultMasterToken = sha256(CODE_SALT + "CEO-IMPOSTER-2026");
   const list: string[] = [];
   for (let i = 0; i < ENCRYPTED_VIP_CODES.length; i++) {
-    const subkey = sha256(`${ceoToken}:${i + 1}`);
+    const subkey = sha256(`${vaultMasterToken}:${i + 1}`);
     const code = pureXorDecrypt(ENCRYPTED_VIP_CODES[i]!, subkey);
     if (/^VIP-\d{2}-[A-Z0-9]{3}$/.test(code)) {
       list.push(code);
@@ -184,6 +183,7 @@ export const TESTER_COUPON_DURATION_MS = 48 * 60 * 60 * 1000; // 48 horas (2 dí
 
 export const STORAGE_KEYS = {
   CEO_TOKEN: "impostor-ceo-token",
+  CEO_ACTIVE_HASH: "impostor-ceo-active-hash",
   PRO_TOKEN: "impostor-pro-token",
   PRO_EXPIRES: "impostor-pro-expires",
   USED_COUPONS: "impostor-used-coupons",
@@ -198,6 +198,65 @@ export type AccessCodeRole =
   "ceo" | "vip_unlimited" | "vip_single" | "founder" | "guest_pass" | "already_used" | null;
 
 const FOUNDER_SECRET = "imposter-founder-v1-secret-8a2b4c6e:";
+const CEO_DYNAMIC_SECRET = "imposter-ceo-master-v2-vault-3f9a1c8e:";
+const CEO_ROTATED_SEAL = "imposter-ceo-rotated-v2-seal-5b7d9e:";
+
+/**
+ * Genera una nueva Llave Maestra de CEO firmada criptográficamente de alta entropía.
+ * Formato: CEO-XXXX-YYYY (Ej: CEO-8K4P-E9A2)
+ */
+export function generateDynamicCeoKey(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let block = "";
+  for (let i = 0; i < 4; i++) {
+    const randIdx = Math.floor(Math.random() * alphabet.length);
+    block += alphabet[randIdx];
+  }
+  const prefix = `CEO-${block}`;
+  const sig = sha256(CEO_DYNAMIC_SECRET + prefix)
+    .slice(0, 4)
+    .toUpperCase();
+  return `${prefix}-${sig}`;
+}
+
+/**
+ * Verifica si una cadena corresponde a una Llave Maestra de CEO generada dinámicamente.
+ */
+export function isValidDynamicCeoKey(rawInput: string): {
+  valid: boolean;
+  normalized: string;
+} {
+  const cleaned = rawInput.trim().toUpperCase().replace(/\s+/g, "");
+  const match = cleaned.match(/^CEO-?([A-Z0-9]{4})-?([A-F0-9]{4})$/);
+  if (!match) return { valid: false, normalized: cleaned };
+  const block = match[1]!;
+  const sig = match[2]!;
+  const prefix = `CEO-${block}`;
+  const expectedSig = sha256(CEO_DYNAMIC_SECRET + prefix)
+    .slice(0, 4)
+    .toUpperCase();
+  if (sig !== expectedSig) return { valid: false, normalized: cleaned };
+  return { valid: true, normalized: `${prefix}-${sig}` };
+}
+
+export function createRotatedCeoToken(normalizedKey: string): string {
+  const seed = sha256(CODE_SALT + normalizedKey.trim().toUpperCase());
+  const body = seed.slice(8);
+  const check = sha256(CEO_ROTATED_SEAL + body).slice(0, 8);
+  return check + body;
+}
+
+export function isRotatedCeoToken(token: string | null): boolean {
+  if (!token || typeof token !== "string" || token.length !== 64) return false;
+  const check = token.slice(0, 8);
+  const body = token.slice(8);
+  const expected = sha256(CEO_ROTATED_SEAL + body).slice(0, 8);
+  return check === expected;
+}
+
+export function computeTokenVerifyHash(token: string): string {
+  return sha256(VERIFY_SALT + token);
+}
 
 /**
  * Genera un código criptográfico único de Miembro Fundador Vitalicio.
@@ -327,10 +386,16 @@ export function normalizeAccessCodeInput(raw: string): string {
     return "VIP-FIESTA-99";
   }
 
-  // Clave maestra CEO
+  // Clave maestra CEO de fábrica
   const ceoMatch = cleaned.match(/^CEO-?IMPOSTER-?2026$/);
   if (ceoMatch) {
     return "CEO-IMPOSTER-2026";
+  }
+
+  // Llave maestra CEO dinámica firmada (CEO-XXXX-YYYY)
+  const dynCeo = isValidDynamicCeoKey(cleaned);
+  if (dynCeo.valid) {
+    return dynCeo.normalized;
   }
 
   // Código Fundador Vitalicio (FNDR-XXXX-YYYY)
@@ -368,7 +433,33 @@ export function verifyAccessCode(
   const token = sha256(CODE_SALT + normalized);
   const verifyHash = sha256(VERIFY_SALT + token);
 
-  if (CEO_VERIFY_HASHES.has(verifyHash)) {
+  // Verificar si existe una Llave Maestra CEO rotada activa en el cliente
+  const activeCeoHash =
+    typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.CEO_ACTIVE_HASH) : null;
+
+  // Si el input es una llave dinámica firmada (CEO-XXXX-YYYY)
+  const dynCeo = isValidDynamicCeoKey(normalized);
+  if (dynCeo.valid) {
+    const rotatedToken = createRotatedCeoToken(dynCeo.normalized);
+    const rotatedVerifyHash = computeTokenVerifyHash(rotatedToken);
+    if (!activeCeoHash || activeCeoHash === rotatedVerifyHash) {
+      return { role: "ceo", token: rotatedToken, couponIdHash: rotatedVerifyHash };
+    }
+    return { role: null, token: null, couponIdHash: null };
+  }
+
+  // Si el usuario ingresó una clave personalizada que coincide con el hash activo rotado
+  if (activeCeoHash) {
+    const candidateRotatedToken = createRotatedCeoToken(normalized);
+    const candidateRotatedHash = computeTokenVerifyHash(candidateRotatedToken);
+    if (candidateRotatedHash === activeCeoHash) {
+      return { role: "ceo", token: candidateRotatedToken, couponIdHash: candidateRotatedHash };
+    }
+    // Si hay una llave rotada activa, la llave de fábrica anterior queda revocada
+    if (CEO_VERIFY_HASHES.has(verifyHash)) {
+      return { role: null, token: null, couponIdHash: null };
+    }
+  } else if (CEO_VERIFY_HASHES.has(verifyHash)) {
     return { role: "ceo", token, couponIdHash: verifyHash };
   }
   if (verifyHash === VIP_UNLIMITED_HASH) {
@@ -454,7 +545,12 @@ export function isValidStoredToken(
   if (!token || typeof token !== "string" || token.length !== 64) return false;
   const verifyHash = sha256(VERIFY_SALT + token);
   if (expectedRole === "ceo") {
-    return CEO_VERIFY_HASHES.has(verifyHash);
+    const activeCeoHash =
+      typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.CEO_ACTIVE_HASH) : null;
+    if (activeCeoHash) {
+      return verifyHash === activeCeoHash && isRotatedCeoToken(token);
+    }
+    return CEO_VERIFY_HASHES.has(verifyHash) || isRotatedCeoToken(token);
   }
   if (verifyHash === VIP_UNLIMITED_HASH) {
     return true;

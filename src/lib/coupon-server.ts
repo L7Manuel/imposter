@@ -8,6 +8,12 @@ import {
   isValidFounderCode,
   generateGuestPass,
   isValidGuestPass,
+  createRotatedCeoToken,
+  isRotatedCeoToken,
+  computeTokenVerifyHash,
+  isValidDynamicCeoKey,
+  normalizeAccessCodeInput,
+  verifyAccessCode,
   STORAGE_KEYS,
 } from "@/lib/security";
 import {
@@ -41,6 +47,29 @@ declare global {
   var __imposterPendingPayments: Map<string, PendingPayment> | undefined;
   var __imposterPaymentRateLimitMap: Map<string, number[]> | undefined;
   var __imposterFoundersMap: Map<number, FounderRecord> | undefined;
+  var __imposterActiveCeoVerifyHash: string | null | undefined;
+  var __imposterCeoKeyMeta:
+    { keyVersion: number; rotatedAt: number | null; maskedPreview: string } | undefined;
+}
+
+function getCeoKeyMeta() {
+  if (!globalThis.__imposterCeoKeyMeta) {
+    globalThis.__imposterCeoKeyMeta = {
+      keyVersion: 1,
+      rotatedAt: null,
+      maskedPreview: "CEO-IMPOSTER-2026 (Fábrica)",
+    };
+  }
+  return globalThis.__imposterCeoKeyMeta;
+}
+
+function isServerCeoTokenValid(token: string | null | undefined): boolean {
+  if (!token || typeof token !== "string" || token.length !== 64) return false;
+  const activeHash = globalThis.__imposterActiveCeoVerifyHash;
+  if (activeHash) {
+    return computeTokenVerifyHash(token) === activeHash && isRotatedCeoToken(token);
+  }
+  return isValidStoredToken(token, "ceo");
 }
 
 function getServerFoundersMap(): Map<number, FounderRecord> {
@@ -83,32 +112,57 @@ export async function sendDiscordWebhookEmbed({
     (typeof process !== "undefined" && process.env?.DISCORD_METRICS_WEBHOOK_URL) ||
     (typeof process !== "undefined" && process.env?.DISCORD_WEBHOOK_URL) ||
     "";
-  if (!url || !url.startsWith("https://discord.com/api/webhooks/")) {
-    return false;
+
+  let deliveredViaWebhook = false;
+  if (url && url.startsWith("https://discord.com/api/webhooks/")) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: "Imposter CEO Bot",
+          avatar_url: "https://imposter.manu-07games.workers.dev/icon-512.png",
+          embeds: [
+            {
+              title,
+              description,
+              color,
+              fields,
+              footer: { text: "Imposter Monetization Engine — Cloudflare Edge" },
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      deliveredViaWebhook = res.ok;
+    } catch {
+      deliveredViaWebhook = false;
+    }
   }
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: "Imposter CEO Bot 👑",
-        avatar_url: "https://imposter.manu-07games.workers.dev/icon-512.png",
-        embeds: [
-          {
-            title,
-            description,
-            color,
-            fields,
-            footer: { text: "Imposter Monetization Engine — Cloudflare Edge" },
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      }),
-    });
-    return res.ok;
-  } catch {
-    return false;
+
+  // Fallback automático hacia el bot Atlas en Render Cloud si no hubo webhook directo
+  if (!deliveredViaWebhook) {
+    try {
+      const atlasRes = await fetch("https://atlas-bot-2xh4.onrender.com/api/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "commerce_embed",
+          title,
+          description,
+          color,
+          fields,
+        }),
+        signal: AbortSignal.timeout(4500),
+      });
+      if (atlasRes.ok) return true;
+    } catch {
+      /* ignore fallback error */
+    }
   }
+
+  return deliveredViaWebhook;
 }
 
 /**
@@ -116,17 +170,185 @@ export async function sendDiscordWebhookEmbed({
  * Permite que el servidor renderice directamente la consola del CEO sin parpadeos de carga ni error 418.
  */
 export const checkCeoAuthServerFn = createServerFn({ method: "GET" }).handler(async () => {
+  const meta = getCeoKeyMeta();
+  const activeVerifyHash = globalThis.__imposterActiveCeoVerifyHash ?? null;
   try {
     const { getCookie } = await import("@tanstack/react-start/server");
     const token = getCookie(STORAGE_KEYS.CEO_TOKEN);
-    if (token && isValidStoredToken(token, "ceo")) {
-      return { isAuthorized: true, token };
+    if (token && isServerCeoTokenValid(token)) {
+      return {
+        isAuthorized: true,
+        token,
+        activeVerifyHash,
+        keyVersion: meta.keyVersion,
+        rotatedAt: meta.rotatedAt,
+        maskedPreview: meta.maskedPreview,
+      };
     }
   } catch {
     /* fallback to unauthenticated */
   }
-  return { isAuthorized: false, token: null };
+  return {
+    isAuthorized: false,
+    token: null,
+    activeVerifyHash,
+    keyVersion: meta.keyVersion,
+    rotatedAt: meta.rotatedAt,
+    maskedPreview: meta.maskedPreview,
+  };
 });
+
+/**
+ * Verifica el inicio de sesión del CEO contra la llave maestra activa en el servidor
+ * (ya sea la de fábrica o una llave maestra rotada dinámicamente).
+ */
+export const verifyCeoLoginServerFn = createServerFn({ method: "POST" })
+  .validator((input: { rawKey: string }) => input)
+  .handler(async ({ data }) => {
+    const normalized = normalizeAccessCodeInput(data.rawKey);
+    const activeHash = globalThis.__imposterActiveCeoVerifyHash ?? null;
+    const meta = getCeoKeyMeta();
+
+    if (activeHash) {
+      const candidateToken = createRotatedCeoToken(normalized);
+      const candidateHash = computeTokenVerifyHash(candidateToken);
+      if (candidateHash === activeHash) {
+        return {
+          authorized: true,
+          token: candidateToken,
+          activeVerifyHash: activeHash,
+          keyVersion: meta.keyVersion,
+          rotatedAt: meta.rotatedAt,
+          maskedPreview: meta.maskedPreview,
+        };
+      }
+      return { authorized: false, token: null, activeVerifyHash: activeHash };
+    }
+
+    // Si el worker no tiene hash activo en memoria pero el CEO ingresa una llave dinámica firmada válida
+    const dynCheck = isValidDynamicCeoKey(normalized);
+    if (dynCheck.valid) {
+      const rotatedToken = createRotatedCeoToken(dynCheck.normalized);
+      const rotatedHash = computeTokenVerifyHash(rotatedToken);
+      globalThis.__imposterActiveCeoVerifyHash = rotatedHash;
+      meta.maskedPreview = `${dynCheck.normalized.slice(0, 6)}••••${dynCheck.normalized.slice(-2)}`;
+      return {
+        authorized: true,
+        token: rotatedToken,
+        activeVerifyHash: rotatedHash,
+        keyVersion: meta.keyVersion,
+        rotatedAt: meta.rotatedAt,
+        maskedPreview: meta.maskedPreview,
+      };
+    }
+
+    const stdCheck = verifyAccessCode(normalized, []);
+    if (stdCheck.role === "ceo" && stdCheck.token) {
+      return {
+        authorized: true,
+        token: stdCheck.token,
+        activeVerifyHash: null,
+        keyVersion: meta.keyVersion,
+        rotatedAt: meta.rotatedAt,
+        maskedPreview: meta.maskedPreview,
+      };
+    }
+
+    return { authorized: false, token: null, activeVerifyHash: activeHash };
+  });
+
+/**
+ * Rota la Llave Maestra del CEO, revoca instantáneamente sesiones anteriores en otros dispositivos
+ * y envía respaldo cifrado al canal de Discord del CEO vía Atlas.
+ */
+export const rotateCeoMasterKeyServerFn = createServerFn({ method: "POST" })
+  .validator(
+    (input: { currentCeoToken: string; action: "rotate" | "reset_factory"; newKey?: string }) =>
+      input,
+  )
+  .handler(async ({ data }) => {
+    if (!isServerCeoTokenValid(data.currentCeoToken)) {
+      return { success: false, error: "Sesión CEO actual no válida o expirada." };
+    }
+
+    const meta = getCeoKeyMeta();
+
+    if (data.action === "reset_factory") {
+      globalThis.__imposterActiveCeoVerifyHash = null;
+      meta.keyVersion += 1;
+      meta.rotatedAt = Date.now();
+      meta.maskedPreview = "CEO-IMPOSTER-2026 (Fábrica)";
+
+      const factoryCheck = verifyAccessCode("CEO-IMPOSTER-2026", []);
+      await sendDiscordWebhookEmbed({
+        webhookUrl: "",
+        title: "🔐 Llave Maestra CEO Restaurada a Fábrica",
+        description:
+          "El CEO restauró la Llave Maestra original de fábrica desde el Panel Ejecutivo.",
+        color: 0xf59e0b,
+        fields: [
+          { name: "Versión de Bóveda", value: `v${meta.keyVersion}.0`, inline: true },
+          { name: "Llave Activa", value: "`CEO-IMPOSTER-2026`", inline: true },
+        ],
+      });
+
+      return {
+        success: true,
+        token: factoryCheck.token!,
+        activeVerifyHash: null,
+        normalizedKey: "CEO-IMPOSTER-2026",
+        keyVersion: meta.keyVersion,
+        rotatedAt: meta.rotatedAt,
+        maskedPreview: meta.maskedPreview,
+      };
+    }
+
+    const rawNewKey = (data.newKey || "").trim().toUpperCase().replace(/\s+/g, "");
+    if (rawNewKey.length < 6 || rawNewKey.length > 36) {
+      return {
+        success: false,
+        error: "La nueva llave maestra debe tener entre 6 y 36 caracteres.",
+      };
+    }
+
+    const newToken = createRotatedCeoToken(rawNewKey);
+    const newVerifyHash = computeTokenVerifyHash(newToken);
+
+    globalThis.__imposterActiveCeoVerifyHash = newVerifyHash;
+    meta.keyVersion += 1;
+    meta.rotatedAt = Date.now();
+    meta.maskedPreview =
+      rawNewKey.length >= 8
+        ? `${rawNewKey.slice(0, 6)}••••${rawNewKey.slice(-2)}`
+        : `${rawNewKey.slice(0, 3)}•••`;
+
+    await sendDiscordWebhookEmbed({
+      webhookUrl: "",
+      title: "🛡️ ¡NUEVA LLAVE MAESTRA CEO ACTIVADA!",
+      description:
+        "Se acaba de rotar la Llave Maestra del Panel Ejecutivo CEO. Todas las sesiones anteriores en otros teléfonos han sido revocadas automáticamente.",
+      color: 0x10b981,
+      fields: [
+        { name: "🔑 Nueva Llave Maestra", value: `\`${rawNewKey}\``, inline: true },
+        { name: "🛡️ Versión de Seguridad", value: `v${meta.keyVersion}.0`, inline: true },
+        {
+          name: "📱 Estado de Otros Dispositivos",
+          value: "Sesiones anteriores revocadas",
+          inline: true,
+        },
+      ],
+    });
+
+    return {
+      success: true,
+      token: newToken,
+      activeVerifyHash: newVerifyHash,
+      normalizedKey: rawNewKey,
+      keyVersion: meta.keyVersion,
+      rotatedAt: meta.rotatedAt,
+      maskedPreview: meta.maskedPreview,
+    };
+  });
 
 export const consumeSingleUseCouponServerFn = createServerFn({ method: "POST" })
   .validator(
@@ -206,23 +428,25 @@ export const getCouponServerStatusServerFn = createServerFn({ method: "POST" })
   });
 
 export const testDiscordWebhookServerFn = createServerFn({ method: "POST" })
-  .validator((input: { webhookUrl: string }) => input)
+  .validator((input: { webhookUrl?: string | undefined }) => input)
   .handler(async ({ data }) => {
-    const url = data.webhookUrl.trim();
-    if (!url.startsWith("https://discord.com/api/webhooks/")) {
+    const url = (data.webhookUrl || "").trim();
+    if (url && !url.startsWith("https://discord.com/api/webhooks/")) {
       return {
         success: false,
-        error: "La URL debe comenzar con https://discord.com/api/webhooks/",
+        error: "Si ingresas un Webhook manual, debe comenzar con https://discord.com/api/webhooks/",
       };
     }
-    globalThis.__imposterDiscordWebhookUrl = url;
+    if (url) {
+      globalThis.__imposterDiscordWebhookUrl = url;
+    }
     const ok = await sendDiscordWebhookEmbed({
       webhookUrl: url,
-      title: "👑 ¡Bot de Imposter Conectado Exitosamente!",
+      title: "👑 ¡Conexión de Imposter Verificada Exitosamente!",
       description:
-        "Las notificaciones en tiempo real para tu juego **Imposter** están activas. Recibirás aquí un aviso instantáneo cada vez que un cliente pague o un tester canjee un cupón.",
+        "Las notificaciones en tiempo real para tu juego **Imposter** están activas. Recibirás aquí un aviso instantáneo cada vez que un cliente pague, un fundador active su pase o un tester canjee un cupón.",
       fields: [
-        { name: "Plataforma", value: "Cloudflare Workers", inline: true },
+        { name: "Plataforma", value: "Cloudflare Workers / Atlas Bridge", inline: true },
         { name: "Estado", value: "🟢 En Línea y Monitoreando", inline: true },
       ],
     });
@@ -230,7 +454,7 @@ export const testDiscordWebhookServerFn = createServerFn({ method: "POST" })
       success: ok,
       error: ok
         ? null
-        : "Discord rechazó el webhook. Verifica que el enlace esté completo y activo.",
+        : "No se pudo entregar la alerta. Verifica tu enlace de Webhook o que el bot Atlas esté activo.",
     };
   });
 
@@ -255,7 +479,7 @@ export const savePaymentConfigServerFn = createServerFn({ method: "POST" })
       input,
   )
   .handler(async ({ data }) => {
-    if (!isValidStoredToken(data.ceoToken, "ceo")) {
+    if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, error: "No autorizado. Clave CEO no válida." };
     }
 
@@ -492,7 +716,7 @@ export const checkPaymentStatusServerFn = createServerFn({ method: "POST" })
 export const getPendingPaymentsServerFn = createServerFn({ method: "POST" })
   .validator((input: { ceoToken: string }) => input)
   .handler(async ({ data }) => {
-    if (!isValidStoredToken(data.ceoToken, "ceo")) {
+    if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, payments: [] };
     }
     const store = getServerPaymentsMap();
@@ -507,7 +731,7 @@ export const reviewPaymentServerFn = createServerFn({ method: "POST" })
     (input: { ceoToken: string; paymentId: string; action: "approve" | "reject" }) => input,
   )
   .handler(async ({ data }) => {
-    if (!isValidStoredToken(data.ceoToken, "ceo")) {
+    if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, error: "No autorizado" };
     }
     const store = getServerPaymentsMap();
@@ -594,7 +818,7 @@ export const reviewPaymentServerFn = createServerFn({ method: "POST" })
 export const getFoundersDataServerFn = createServerFn({ method: "POST" })
   .validator((input: { ceoToken: string }) => input)
   .handler(async ({ data }) => {
-    if (!isValidStoredToken(data.ceoToken, "ceo")) {
+    if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, founders: [] };
     }
     const store = getServerFoundersMap();
@@ -603,12 +827,16 @@ export const getFoundersDataServerFn = createServerFn({ method: "POST" })
   });
 
 /**
+ * Registra el canje de un Pase Fundador en el servidor y notifica a Discord.
+ */
+
+/**
  * Emite un nuevo Pase Fundador correlativo con sus 5 pases de embajador (solo CEO).
  */
 export const issueFounderServerFn = createServerFn({ method: "POST" })
   .validator((input: { ceoToken: string; name?: string }) => input)
   .handler(async ({ data }) => {
-    if (!isValidStoredToken(data.ceoToken, "ceo")) {
+    if (!isServerCeoTokenValid(data.ceoToken)) {
       return { success: false, error: "No autorizado" };
     }
     const store = getServerFoundersMap();
@@ -632,6 +860,36 @@ export const issueFounderServerFn = createServerFn({ method: "POST" })
     store.set(nextNumber, founder);
 
     return { success: true, founder };
+  });
+
+/**
+ * Permite al CEO confirmar/activar manualmente un Pase Fundador, reiniciarlo o eliminar uno de prueba.
+ */
+export const manageFounderStatusServerFn = createServerFn({ method: "POST" })
+  .validator(
+    (input: { ceoToken: string; founderNumber: number; action: "activate" | "reset" | "delete" }) =>
+      input,
+  )
+  .handler(async ({ data }) => {
+    if (!isServerCeoTokenValid(data.ceoToken)) {
+      return { success: false, error: "No autorizado" };
+    }
+    const store = getServerFoundersMap();
+    const founder = store.get(data.founderNumber);
+    if (!founder) {
+      return { success: false, error: "Fundador no encontrado" };
+    }
+
+    if (data.action === "delete") {
+      store.delete(data.founderNumber);
+    } else if (data.action === "activate") {
+      founder.redeemedAt = Date.now();
+    } else if (data.action === "reset") {
+      founder.redeemedAt = null;
+    }
+
+    const list = Array.from(store.values()).sort((a, b) => a.number - b.number);
+    return { success: true, founders: list };
   });
 
 /**
@@ -664,6 +922,12 @@ export const consumeFounderServerFn = createServerFn({ method: "POST" })
       };
       store.set(check.number, founder);
     } else {
+      if (founder.redeemedAt !== null) {
+        return {
+          success: false,
+          error: "Este Pase Fundador ya fue reclamado anteriormente.",
+        };
+      }
       founder.redeemedAt = Date.now();
       if (data.founderName?.trim()) {
         founder.name = data.founderName.trim();

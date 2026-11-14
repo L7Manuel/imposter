@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { RefreshCw, Edit3, Save, MessageCircle, Check, Copy } from "lucide-react";
+import { RefreshCw, Edit3, Save, MessageCircle, Check, Copy, RotateCcw } from "lucide-react";
 import { VIP_COUPON_HASHES_ORDERED, STORAGE_KEYS } from "@/lib/security";
+import { consumeSingleUseCouponServerFn } from "@/lib/coupon-server";
 
 export interface CeoTestersTabProps {
   decryptedCodes: string[];
@@ -23,6 +24,24 @@ export function CeoTestersTab({
 }: CeoTestersTabProps) {
   const [editingCouponIdx, setEditingCouponIdx] = useState<number | null>(null);
   const [editingNameInput, setEditingNameInput] = useState("");
+  const [isResettingHash, setIsResettingHash] = useState<string | null>(null);
+
+  const handleResetCoupon = async (couponIdHash: string) => {
+    setIsResettingHash(couponIdHash || "ALL");
+    try {
+      await consumeSingleUseCouponServerFn({
+        data: {
+          couponIdHash,
+          action: "reset",
+        },
+      });
+      await fetchTesterStatuses();
+    } catch {
+      /* ignore */
+    } finally {
+      setIsResettingHash(null);
+    }
+  };
 
   const handleSaveTesterName = (num: number) => {
     const clean = editingNameInput.trim() || (num === 1 ? "Ivana" : `Tester #${num}`);
@@ -53,19 +72,29 @@ Al tocar el enlace, se abrirá el juego y tu pase VIP de 48 horas quedará listo
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h3 className="font-display text-lg text-foreground mb-1">
-              10 CUPONES VIP DE PRUEBA (48 HORAS)
+              10 RANURAS RECARGABLES DE TESTER VIP (48 HORAS)
             </h3>
             <p className="text-xs text-muted-foreground">
-              Cada cupón es de 1 solo uso estricto y desbloquea el juego por 48 horas a tus sujetos
-              de prueba.
+              Tienes 10 llaves maestras de prueba de 48h. Cuando un tester consume una, puedes
+              pulsar <strong>Liberar</strong> para recargarla y volver a usarla con otra persona.
             </p>
           </div>
-          <button
-            onClick={() => fetchTesterStatuses()}
-            className="flex items-center gap-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition cursor-pointer"
-          >
-            <RefreshCw size={13} /> Sincronizar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleResetCoupon("")}
+              disabled={isResettingHash !== null}
+              className="flex items-center gap-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-3 py-1.5 text-xs font-bold text-amber-300 transition cursor-pointer"
+              title="Liberar y recargar los 10 cupones de prueba"
+            >
+              <RotateCcw size={13} /> Liberar los 10 Cupones
+            </button>
+            <button
+              onClick={() => fetchTesterStatuses()}
+              className="flex items-center gap-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition cursor-pointer"
+            >
+              <RefreshCw size={13} /> Sincronizar
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -127,13 +156,28 @@ Al tocar el enlace, se abrirá el juego y tu pase VIP de 48 horas quedará listo
                     </div>
                   )}
 
-                  <span
-                    className={`text-[10px] font-semibold mt-0.5 inline-block ${
-                      isUsed ? "text-rose-400" : "text-emerald-400"
-                    }`}
-                  >
-                    {isUsed ? "Consumido" : "Disponible"}
-                  </span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span
+                      className={`text-[10px] font-semibold inline-block ${
+                        isUsed ? "text-rose-400" : "text-emerald-400"
+                      }`}
+                    >
+                      {isUsed ? "Consumido" : "Disponible"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleResetCoupon(hash)}
+                      disabled={isResettingHash !== null}
+                      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold transition cursor-pointer border ${
+                        isUsed
+                          ? "bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300"
+                          : "bg-white/5 hover:bg-white/10 border-white/15 text-muted-foreground hover:text-foreground"
+                      }`}
+                      title="Liberar / Recargar este cupón para nuevo uso"
+                    >
+                      <RotateCcw size={10} /> Liberar
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">

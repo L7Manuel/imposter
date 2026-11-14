@@ -8,8 +8,15 @@ import {
   Send,
   ChevronDown,
   ChevronUp,
+  CheckCircle2,
+  RotateCcw,
+  Trash2,
 } from "lucide-react";
-import { FounderRecord, issueFounderServerFn } from "@/lib/coupon-server";
+import {
+  FounderRecord,
+  issueFounderServerFn,
+  manageFounderStatusServerFn,
+} from "@/lib/coupon-server";
 
 export interface CeoFoundersTabProps {
   token: string | null;
@@ -60,33 +67,48 @@ export function CeoFoundersTab({
     }
   };
 
+  const handleManageFounder = async (
+    founderNumber: number,
+    action: "activate" | "reset" | "delete",
+  ) => {
+    if (!token) return;
+    try {
+      const res = await manageFounderStatusServerFn({
+        data: { ceoToken: token, founderNumber, action },
+      });
+      if (res.success && res.founders) {
+        setFounders(res.founders);
+        if (action === "delete" && issuedFounder?.number === founderNumber) {
+          setIssuedFounder(null);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
   const buildFounderWhatsAppUrl = (code: string, name: string) => {
-    const text = `¡Hola ${name || ""}! 👑 Aquí tienes tu Pase Fundador Vitalicio oficial para Imposter.
+    const directUrl = `https://imposter.manu-07games.workers.dev/?code=${code}`;
+    const text = `¡Hola ${name || ""}! Aquí tienes tu Pase Fundador Vitalicio oficial para Imposter.
 
-🔑 Código Exclusivo: ${code}
-📲 Entra a jugar: https://imposter.manu-07games.workers.dev
+Código Exclusivo: ${code}
+Actívalo en 1 toque aquí: ${directUrl}
 
-Pasos para activarlo:
-1. Abre el enlace en tu navegador.
-2. Pulsa el botón de la corona.
-3. Escribe tu código en "¿Tienes un código o cupón PRO?".
-4. ¡Listo! Tienes acceso ilimitado permanente y 5 Pases Fiesta de 24h para tus amigos.
+Al abrir el enlace y pulsar "Activar", tendrás acceso ilimitado permanente en tu teléfono y 5 Pases Fiesta de 24h para regalar a tus amigos.
 
-💬 Únete a nuestro canal VIP en Discord:
+Únete a nuestro canal VIP en Discord:
 https://discord.gg/9W92kXn4kS`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
   const buildGuestPassWhatsAppUrl = (passCode: string, founderName: string) => {
-    const text = `¡Hola! 🎁 ${founderName || "Un Miembro Fundador"} te acaba de regalar un Pase Fiesta Oficial de 24 Horas para Imposter.
+    const directUrl = `https://imposter.manu-07games.workers.dev/?code=${passCode}`;
+    const text = `¡Hola! ${founderName || "Un Miembro Fundador"} te acaba de regalar un Pase Fiesta Oficial de 24 Horas para Imposter.
 
-🔑 Código de Fiesta: ${passCode}
-📲 Entra a jugar: https://imposter.manu-07games.workers.dev
+Código de Fiesta: ${passCode}
+Actívalo en 1 toque aquí: ${directUrl}
 
-Pasos:
-1. Abre el enlace en tu móvil.
-2. Pulsa la corona y canjea tu código.
-3. ¡Todo desbloqueado para la fiesta de hoy!`;
+¡Todo desbloqueado para la fiesta de hoy!`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
@@ -217,7 +239,7 @@ Pasos:
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${
                           f.redeemedAt !== null
@@ -225,8 +247,28 @@ Pasos:
                             : "bg-amber-500/10 text-amber-300 border-amber-500/30"
                         }`}
                       >
-                        {f.redeemedAt !== null ? "Activo" : "Pendiente"}
+                        {f.redeemedAt !== null ? "Canjeado (Activo)" : "Esperando canje"}
                       </span>
+
+                      {f.redeemedAt === null ? (
+                        <button
+                          type="button"
+                          onClick={() => handleManageFounder(f.number, "activate")}
+                          title="Confirmar y marcar como activo manualmente"
+                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-bold text-emerald-300 transition cursor-pointer"
+                        >
+                          <CheckCircle2 size={12} /> Confirmar
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleManageFounder(f.number, "reset")}
+                          title="Liberar código para que pueda volver a canjearse"
+                          className="inline-flex items-center gap-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-2.5 py-1 text-[11px] font-bold text-amber-300 transition cursor-pointer"
+                        >
+                          <RotateCcw size={12} /> Liberar
+                        </button>
+                      )}
 
                       <span className="text-xs text-muted-foreground bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
                         {usedCount}/5 Pases Usados
@@ -235,7 +277,7 @@ Pasos:
                       <button
                         onClick={() => copyToClipboard(f.code, `fndr-${f.number}`)}
                         title="Copiar Código"
-                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground transition"
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer"
                       >
                         {copiedKey === `fndr-${f.number}` ? (
                           <Check size={14} className="text-emerald-400" />
@@ -248,15 +290,24 @@ Pasos:
                         href={buildFounderWhatsAppUrl(f.code, f.name)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Enviar por WhatsApp"
+                        title="Enviar por WhatsApp con enlace directo"
                         className="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 transition border border-emerald-500/30"
                       >
                         <Send size={14} />
                       </a>
 
                       <button
+                        type="button"
+                        onClick={() => handleManageFounder(f.number, "delete")}
+                        title="Eliminar este registro de fundador"
+                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 transition cursor-pointer"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+
+                      <button
                         onClick={() => setExpandedFounder(isExpanded ? null : f.number)}
-                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground transition"
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer"
                       >
                         {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </button>

@@ -1,14 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { Crown, CreditCard, Ticket, BarChart3, ArrowLeft, Lock } from "lucide-react";
+import {
+  Crown,
+  CreditCard,
+  Ticket,
+  BarChart3,
+  ArrowLeft,
+  Lock,
+  ShieldCheck,
+  KeyRound,
+  RefreshCw,
+  Copy,
+  Check,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import {
   isValidStoredToken,
   verifyAccessCode,
   STORAGE_KEYS,
   getDecryptedVipCodes,
+  generateDynamicCeoKey,
 } from "@/lib/security";
 import {
   checkCeoAuthServerFn,
+  verifyCeoLoginServerFn,
+  rotateCeoMasterKeyServerFn,
   getFoundersDataServerFn,
   FounderRecord,
   getPendingPaymentsServerFn,
@@ -35,11 +52,27 @@ export function CeoPage() {
   const loaderData = Route.useLoaderData();
   const [token, setToken] = useState<string | null>(loaderData?.token ?? null);
   const [isAuthorized, setIsAuthorized] = useState<boolean>(loaderData?.isAuthorized ?? false);
-  const [activeTab, setActiveTab] = useState<"fundadores" | "cobros" | "testers" | "metricas">(
-    "fundadores",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "fundadores" | "cobros" | "testers" | "metricas" | "seguridad"
+  >("fundadores");
   const [loginInput, setLoginInput] = useState("");
   const [loginError, setLoginError] = useState("");
+
+  // Estado del Generador y Bóveda de Llave Maestra CEO (AAA)
+  const [keyVersion, setKeyVersion] = useState<number>(loaderData?.keyVersion ?? 1);
+  const [maskedKeyPreview, setMaskedKeyPreview] = useState<string>(
+    loaderData?.maskedPreview ?? "CEO-IMPOSTER-2026 (Fábrica)",
+  );
+  const [rotatedAt, setRotatedAt] = useState<number | null>(loaderData?.rotatedAt ?? null);
+  const [candidateMasterKey, setCandidateMasterKey] = useState<string>(() =>
+    generateDynamicCeoKey(),
+  );
+  const [hasCopiedCandidate, setHasCopiedCandidate] = useState<boolean>(false);
+  const [isRotatingKey, setIsRotatingKey] = useState<boolean>(false);
+  const [keyVaultFeedback, setKeyVaultFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // Founders state
   const [founders, setFounders] = useState<FounderRecord[]>([]);
@@ -78,6 +111,12 @@ export function CeoPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    if (loaderData?.activeVerifyHash) {
+      localStorage.setItem(STORAGE_KEYS.CEO_ACTIVE_HASH, loaderData.activeVerifyHash);
+    } else if (loaderData && loaderData.activeVerifyHash === null) {
+      localStorage.removeItem(STORAGE_KEYS.CEO_ACTIVE_HASH);
+    }
+
     const stored = localStorage.getItem(STORAGE_KEYS.CEO_TOKEN);
     if (stored && isValidStoredToken(stored, "ceo")) {
       setToken(stored);
@@ -86,11 +125,17 @@ export function CeoPage() {
       document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=${stored}; path=/; max-age=31536000; SameSite=Lax`;
       const codes = getDecryptedVipCodes(stored);
       if (codes.length > 0) setDecryptedCodes(codes);
-    } else if (loaderData?.token) {
+    } else if (loaderData?.isAuthorized && loaderData?.token) {
       // Si el servidor lo autorizó por cookie pero localStorage estaba vacío
       localStorage.setItem(STORAGE_KEYS.CEO_TOKEN, loaderData.token);
       const codes = getDecryptedVipCodes(loaderData.token);
       if (codes.length > 0) setDecryptedCodes(codes);
+    } else if (stored) {
+      // Si tenía un token viejo que fue revocado al rotar la llave en otro dispositivo
+      localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
+      document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=; path=/; max-age=0; SameSite=Lax`;
+      setToken(null);
+      setIsAuthorized(false);
     }
 
     try {
@@ -105,7 +150,7 @@ export function CeoPage() {
     } catch {
       /* ignore */
     }
-  }, [loaderData?.token]);
+  }, [loaderData]);
 
   // Fetch data on active tab
   const fetchFounders = useCallback(
@@ -226,9 +271,35 @@ export function CeoPage() {
     }
   }, [isAuthorized, token, activeTab, fetchMetrics, fetchPayments]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
+    try {
+      const srv = await verifyCeoLoginServerFn({ data: { rawKey: loginInput } });
+      if (srv.authorized && srv.token) {
+        if (typeof window !== "undefined") {
+          if (srv.activeVerifyHash) {
+            localStorage.setItem(STORAGE_KEYS.CEO_ACTIVE_HASH, srv.activeVerifyHash);
+          } else {
+            localStorage.removeItem(STORAGE_KEYS.CEO_ACTIVE_HASH);
+          }
+          localStorage.setItem(STORAGE_KEYS.CEO_TOKEN, srv.token);
+          document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=${srv.token}; path=/; max-age=31536000; SameSite=Lax`;
+        }
+        setToken(srv.token);
+        setIsAuthorized(true);
+        if (srv.keyVersion) setKeyVersion(srv.keyVersion);
+        if (srv.maskedPreview) setMaskedKeyPreview(srv.maskedPreview);
+        if (srv.rotatedAt !== undefined) setRotatedAt(srv.rotatedAt);
+        const codes = getDecryptedVipCodes(srv.token);
+        if (codes.length > 0) setDecryptedCodes(codes);
+        fetchFounders(srv.token);
+        return;
+      }
+    } catch {
+      /* fallback local */
+    }
+
     const { role, token: newToken } = verifyAccessCode(loginInput, []);
     if (role === "ceo" && newToken) {
       if (typeof window !== "undefined") {
@@ -241,7 +312,89 @@ export function CeoPage() {
       if (codes.length > 0) setDecryptedCodes(codes);
       fetchFounders(newToken);
     } else {
-      setLoginError("Clave no autorizada. Acceso denegado.");
+      setLoginError("Clave no autorizada o revocada. Acceso denegado.");
+    }
+  };
+
+  const handleActivateNewMasterKey = async () => {
+    if (!token) return;
+    setIsRotatingKey(true);
+    setKeyVaultFeedback(null);
+    try {
+      const res = await rotateCeoMasterKeyServerFn({
+        data: {
+          currentCeoToken: token,
+          action: "rotate",
+          newKey: candidateMasterKey,
+        },
+      });
+      if (res.success && res.token) {
+        if (typeof window !== "undefined") {
+          if (res.activeVerifyHash) {
+            localStorage.setItem(STORAGE_KEYS.CEO_ACTIVE_HASH, res.activeVerifyHash);
+          }
+          localStorage.setItem(STORAGE_KEYS.CEO_TOKEN, res.token);
+          document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=${res.token}; path=/; max-age=31536000; SameSite=Lax`;
+        }
+        setToken(res.token);
+        setKeyVersion(res.keyVersion);
+        setRotatedAt(res.rotatedAt);
+        setMaskedKeyPreview(res.maskedPreview);
+        setDecryptedCodes(getDecryptedVipCodes(res.token));
+        setKeyVaultFeedback({
+          type: "success",
+          text: `¡Nueva Llave Maestra (${res.normalizedKey}) activada! Otros dispositivos fueron desconectados y se envió copia de respaldo a tu Discord.`,
+        });
+      } else {
+        setKeyVaultFeedback({
+          type: "error",
+          text: res.error || "No se pudo rotar la llave maestra.",
+        });
+      }
+    } catch {
+      setKeyVaultFeedback({
+        type: "error",
+        text: "Error de red al rotar la llave maestra.",
+      });
+    } finally {
+      setIsRotatingKey(false);
+    }
+  };
+
+  const handleResetFactoryMasterKey = async () => {
+    if (!token) return;
+    setIsRotatingKey(true);
+    setKeyVaultFeedback(null);
+    try {
+      const res = await rotateCeoMasterKeyServerFn({
+        data: {
+          currentCeoToken: token,
+          action: "reset_factory",
+        },
+      });
+      if (res.success && res.token) {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(STORAGE_KEYS.CEO_ACTIVE_HASH);
+          localStorage.setItem(STORAGE_KEYS.CEO_TOKEN, res.token);
+          document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=${res.token}; path=/; max-age=31536000; SameSite=Lax`;
+        }
+        setToken(res.token);
+        setKeyVersion(res.keyVersion);
+        setRotatedAt(res.rotatedAt);
+        setMaskedKeyPreview(res.maskedPreview);
+        setDecryptedCodes(getDecryptedVipCodes(res.token));
+        setKeyVaultFeedback({
+          type: "success",
+          text: "Llave Maestra restaurada al valor original de fábrica (CEO-IMPOSTER-2026).",
+        });
+      }
+    } catch {
+      setKeyVaultFeedback({
+        type: "error",
+        text: "Error al restaurar la llave de fábrica.",
+      });
+    } finally {
+      setIsRotatingKey(false);
     }
   };
 
@@ -373,7 +526,7 @@ export function CeoPage() {
       </header>
 
       {/* Tabs Navigation */}
-      <nav className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <nav className="mb-6 grid grid-cols-2 sm:grid-cols-5 gap-2">
         <button
           onClick={() => setActiveTab("fundadores")}
           className={`flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 text-xs font-semibold transition cursor-pointer ${
@@ -426,6 +579,18 @@ export function CeoPage() {
           <BarChart3 size={15} />
           <span>Métricas</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab("seguridad")}
+          className={`col-span-2 sm:col-span-1 flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 text-xs font-semibold transition cursor-pointer ${
+            activeTab === "seguridad"
+              ? "bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 shadow-lg"
+              : "bg-white/5 border border-white/10 text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <KeyRound size={15} />
+          <span>Llave CEO</span>
+        </button>
       </nav>
 
       {/* TABS CONTENT */}
@@ -471,6 +636,174 @@ export function CeoPage() {
           isLoadingMetrics={isLoadingMetrics}
           fetchMetrics={fetchMetrics}
         />
+      )}
+
+      {activeTab === "seguridad" && (
+        <section className="flex flex-col gap-6 animate-in fade-in duration-200">
+          {/* Estado Actual de la Bóveda Criptográfica */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-2xl glass-panel p-4 border border-emerald-500/30 bg-emerald-500/[0.04]">
+              <span className="text-xs text-muted-foreground block">Estado de Bóveda CEO</span>
+              <div className="mt-2 flex items-center gap-2">
+                <ShieldCheck size={20} className="text-emerald-400" />
+                <span className="font-display text-xl text-emerald-400 tracking-wide">
+                  BLINDAJE ACTIVO
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground mt-1 block">
+                Versión de seguridad: <strong className="text-foreground">v{keyVersion}.0</strong>
+              </span>
+            </div>
+
+            <div className="rounded-2xl glass-panel p-4 border border-white/10">
+              <span className="text-xs text-muted-foreground block">Llave Maestra en Vigor</span>
+              <span className="font-mono text-lg font-bold text-amber-300 mt-2 block">
+                {maskedKeyPreview}
+              </span>
+              <span className="text-[11px] text-muted-foreground mt-1 block">
+                {rotatedAt
+                  ? `Rotada: ${new Date(rotatedAt).toLocaleTimeString()}`
+                  : "Configuración inicial"}
+              </span>
+            </div>
+
+            <div className="rounded-2xl glass-panel p-4 border border-white/10">
+              <span className="text-xs text-muted-foreground block">Bóveda de 10 Cupones VIP</span>
+              <span className="font-display text-xl text-primary mt-2 block">
+                {decryptedCodes.length} / 10 Descifrados
+              </span>
+              <span className="text-[11px] text-muted-foreground mt-1 block">
+                Aislada contra rotación de clave
+              </span>
+            </div>
+          </div>
+
+          {/* Generador Táctico AAA de Llave Maestra CEO */}
+          <div className="rounded-3xl glass-panel p-6 border-2 border-amber-400/35 bg-gradient-to-br from-amber-500/10 via-background to-emerald-500/5 shadow-2xl space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400/20 border border-amber-400/40 text-amber-300 shadow-lg">
+                  <KeyRound size={24} />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300">
+                    Rotación Criptográfica SHA-256 en Caliente
+                  </span>
+                  <h2 className="font-display text-2xl text-foreground tracking-wide">
+                    GENERADOR DE LLAVE MAESTRA CEO
+                  </h2>
+                </div>
+              </div>
+              <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 text-[11px] font-bold text-emerald-300">
+                Respaldo automático en Discord
+              </span>
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Genera una nueva Llave Maestra firmada o escribe una personalizada. Al activarla,{" "}
+              <strong className="text-foreground">
+                tu sesión actual se actualiza sin interrupción
+              </strong>
+              , cualquier otro teléfono con la llave anterior queda desconectado al instante, y el
+              bot Atlas envía una copia de seguridad a tu canal privado de Discord.
+            </p>
+
+            {/* Visor Táctico de la Nueva Llave */}
+            <div className="rounded-2xl bg-black/50 border border-amber-400/30 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
+                  Nueva Llave Maestra Candidata
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCandidateMasterKey(generateDynamicCeoKey());
+                    setHasCopiedCandidate(false);
+                    setKeyVaultFeedback(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/30 px-3 py-1 text-xs font-bold text-amber-300 transition cursor-pointer"
+                >
+                  <RefreshCw size={12} /> Generar Otra Llave
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <input
+                  type="text"
+                  value={candidateMasterKey}
+                  onChange={(e) => {
+                    setCandidateMasterKey(e.target.value.toUpperCase());
+                    setHasCopiedCandidate(false);
+                  }}
+                  placeholder="CEO-XXXX-YYYY"
+                  maxLength={32}
+                  className="flex-1 rounded-xl bg-white/5 border border-white/15 px-4 py-3 text-center font-mono text-xl font-extrabold tracking-widest text-amber-300 focus:border-amber-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    copyToClipboard(candidateMasterKey, "candidate-ceo-key");
+                    setHasCopiedCandidate(true);
+                  }}
+                  className={`flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-xs font-bold transition cursor-pointer ${
+                    copiedKey === "candidate-ceo-key" || hasCopiedCandidate
+                      ? "bg-emerald-500/20 border border-emerald-400/40 text-emerald-300"
+                      : "bg-white/10 hover:bg-white/15 border border-white/15 text-foreground"
+                  }`}
+                >
+                  {copiedKey === "candidate-ceo-key" || hasCopiedCandidate ? (
+                    <>
+                      <Check size={15} /> ¡Llave Copiada!
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={15} /> 1. Copiar Llave
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {keyVaultFeedback && (
+              <div
+                className={`rounded-2xl p-3.5 text-xs font-medium border ${
+                  keyVaultFeedback.type === "success"
+                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                    : "bg-rose-500/15 border-rose-500/30 text-rose-300"
+                }`}
+              >
+                {keyVaultFeedback.text}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isRotatingKey || candidateMasterKey.trim().length < 6}
+                onClick={handleActivateNewMasterKey}
+                className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2 rounded-2xl bg-amber-400 hover:bg-amber-300 py-3.5 px-6 text-sm font-extrabold text-slate-950 shadow-[0_0_25px_rgba(251,191,36,0.35)] transition active:scale-95 disabled:opacity-40 cursor-pointer"
+              >
+                <Sparkles size={16} />
+                <span>
+                  {isRotatingKey
+                    ? "Rotando y Blindando..."
+                    : "2. Activar Nueva Llave y Revocar Anterior"}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isRotatingKey}
+                onClick={handleResetFactoryMasterKey}
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 py-3.5 px-4 text-xs font-semibold text-muted-foreground hover:text-foreground transition cursor-pointer"
+                title="Volver a la clave original CEO-IMPOSTER-2026"
+              >
+                <RotateCcw size={14} />
+                <span>Restaurar Llave de Fábrica</span>
+              </button>
+            </div>
+          </div>
+        </section>
       )}
     </main>
   );

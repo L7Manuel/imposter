@@ -52,6 +52,8 @@ export interface PaywallModalProps {
   setProCodeInput: (code: string) => void;
   handleRedeemCode: () => void;
   proCodeFeedback: { type: "success" | "error"; text: string } | null;
+  freeTrialUsed?: boolean;
+  onActivateFreeTrial?: () => void;
 }
 
 export function PaywallModal({
@@ -84,6 +86,8 @@ export function PaywallModal({
   setProCodeInput,
   handleRedeemCode,
   proCodeFeedback,
+  freeTrialUsed = false,
+  onActivateFreeTrial,
 }: PaywallModalProps) {
   if (!isOpen) return null;
 
@@ -155,12 +159,12 @@ export function PaywallModal({
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {activePaymentTracker ? (
             <div className="text-center space-y-4 py-2">
-              <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-400/20 border-2 border-amber-400 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.3)]">
-                <Loader2 size={32} className="animate-spin" />
+              <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-400/20 border-2 border-emerald-400 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                <Check size={32} />
               </div>
               <div>
-                <h3 className="font-display text-lg text-amber-300">
-                  Verificando Transferencia en Vivo
+                <h3 className="font-display text-lg text-emerald-300">
+                  ¡ACCESO PROVISIONAL ACTIVADO!
                 </h3>
                 <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                   <p>
@@ -183,20 +187,30 @@ export function PaywallModal({
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-black/40 border border-amber-400/30 p-3.5 text-xs text-left space-y-1.5">
-                <p className="font-bold flex items-center gap-1.5 text-amber-300 text-xs">
-                  <Sparkles size={13} /> Desbloqueo Automático Instantáneo
+              <div className="rounded-2xl bg-emerald-500/10 border border-emerald-400/35 p-3.5 text-xs text-left space-y-1.5">
+                <p className="font-bold flex items-center gap-1.5 text-emerald-300 text-xs">
+                  <Sparkles size={13} /> Confianza en Fiesta: Juega sin Esperar
                 </p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Hemos notificado al CEO a través de Discord. En cuanto confirme los fondos en su
-                  cuenta, tu Party Pass PRO se desbloqueará solo en esta pantalla. ¡No cierres el
-                  juego!
+                <p className="text-[11px] text-foreground/90 leading-relaxed">
+                  Tu Party Pass PRO ya está desbloqueado provisionalmente para que tu grupo empiece
+                  a jugar ahora mismo mientras verificamos la transferencia en segundo plano.
                 </p>
               </div>
 
               {payProofFeedback && (
                 <p className="text-xs text-rose-400 font-semibold">{payProofFeedback}</p>
               )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  playPop(soundEnabled);
+                  onClose();
+                }}
+                className="w-full rounded-xl bg-emerald-400 py-3 font-display text-sm tracking-wider text-slate-950 shadow-lg hover:brightness-110 transition cursor-pointer"
+              >
+                ¡VOLVER A LA MESA Y JUGAR PRO AHORA!
+              </button>
 
               <button
                 type="button"
@@ -212,18 +226,43 @@ export function PaywallModal({
                 }}
                 className="rounded-xl bg-white/10 hover:bg-white/20 text-muted-foreground hover:text-white px-3.5 py-2 text-xs font-semibold transition cursor-pointer"
               >
-                Ingresar otra referencia o volver
+                Corregir referencia bancaria
               </button>
             </div>
           ) : proModalView === "perks" ? (
             <>
+              {/* Botón de 1 Ronda VIP de Prueba Gratis (si no se ha consumido) */}
+              {!freeTrialUsed && onActivateFreeTrial && (
+                <div className="rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500/20 via-teal-500/10 to-transparent p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-300">
+                      ¿Aún no has probado el modo PRO?
+                    </span>
+                    <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[9px] font-bold text-emerald-200">
+                      1 Partida Gratis
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playPop(soundEnabled);
+                      onActivateFreeTrial();
+                      onClose();
+                    }}
+                    className="w-full rounded-xl bg-emerald-400 py-2.5 text-xs font-extrabold text-slate-950 shadow transition hover:brightness-110 active:scale-95 cursor-pointer"
+                  >
+                    Jugar 1 Ronda VIP de Prueba Gratis Ahora
+                  </button>
+                </div>
+              )}
+
               {/* Lista de Beneficios */}
               <div className="space-y-2 text-xs">
                 {[
-                  "Salas grandes de 7 hasta 15 jugadores",
+                  "Salas grandes de 7 hasta 15 jugadores (En Mesa y Online)",
                   "8 Categorías PRO (Cine, Deportes, Geek, Objetos, Profesiones y más)",
                   "Categoría picante Fiesta +18 (60 palabras)",
-                  "Rol especial El Bufón y Eventos Relámpago",
+                  "Rol especial El Bufón, Infiltrado Ciego y Eventos Relámpago",
                   "Creación e importación ilimitada de listas propias",
                 ].map((perk, idx) => (
                   <div
@@ -325,7 +364,7 @@ export function PaywallModal({
                       {isSelected && (
                         <div className="mt-2.5 pt-2 border-t border-amber-400/20 flex items-center justify-between gap-2">
                           <span className="text-[10px] text-amber-200/90 font-medium">
-                            ⭐ Acceso permanente para siempre
+                            Acceso permanente para siempre
                           </span>
                           <a
                             href={paymentConfig.discordInviteUrl || "https://discord.gg"}

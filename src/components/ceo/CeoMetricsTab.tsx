@@ -1,8 +1,5 @@
-import { useState, useEffect } from "react";
 import { RefreshCw, Activity, Smartphone, Monitor } from "lucide-react";
 import { getGlobalMetricsServerFn, GlobalMetrics } from "@/lib/telemetry-server";
-import { testDiscordWebhookServerFn } from "@/lib/coupon-server";
-import { STORAGE_KEYS } from "@/lib/security";
 
 export interface CeoMetricsTabProps {
   metrics: GlobalMetrics;
@@ -11,57 +8,6 @@ export interface CeoMetricsTabProps {
 }
 
 export function CeoMetricsTab({ metrics, isLoadingMetrics, fetchMetrics }: CeoMetricsTabProps) {
-  const [discordWebhookInput, setDiscordWebhookInput] = useState("");
-  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
-  const [webhookFeedback, setWebhookFeedback] = useState<{
-    type: "success" | "error";
-    msg: string;
-  } | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const storedHook = localStorage.getItem(STORAGE_KEYS.DISCORD_WEBHOOK);
-    if (storedHook) setDiscordWebhookInput(storedHook);
-  }, []);
-
-  const handleTestDiscordWebhook = async () => {
-    const url = discordWebhookInput.trim();
-    if (!url.startsWith("https://discord.com/api/webhooks/")) {
-      setWebhookFeedback({
-        type: "error",
-        msg: "La URL debe comenzar con https://discord.com/api/webhooks/",
-      });
-      return;
-    }
-    setIsTestingWebhook(true);
-    setWebhookFeedback(null);
-    try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEYS.DISCORD_WEBHOOK, url);
-      }
-      const res = await testDiscordWebhookServerFn({ data: { webhookUrl: url } });
-      if (res.success) {
-        setWebhookFeedback({
-          type: "success",
-          msg: "¡Alerta enviada exitosamente a tu canal de Discord!",
-        });
-        setTimeout(() => setWebhookFeedback(null), 4000);
-      } else {
-        setWebhookFeedback({
-          type: "error",
-          msg: res.error || "Discord rechazó el webhook. Verifica el enlace.",
-        });
-      }
-    } catch {
-      setWebhookFeedback({
-        type: "error",
-        msg: "Error de red al conectar con el webhook de Discord.",
-      });
-    } finally {
-      setIsTestingWebhook(false);
-    }
-  };
-
   const handleResetMetrics = async () => {
     if (!confirm("¿Deseas reiniciar todas las métricas a 0?")) return;
     try {
@@ -211,63 +157,6 @@ export function CeoMetricsTab({ metrics, isLoadingMetrics, fetchMetrics }: CeoMe
             ))}
           </div>
         )}
-      </div>
-
-      {/* Configuración Discord Webhook */}
-      <div className="rounded-2xl glass-panel p-5 border border-white/10 space-y-3">
-        <div>
-          <h4 className="font-display text-sm text-foreground">
-            CANAL DE ALERTAS DISCORD (WEBHOOK)
-          </h4>
-          <p className="text-xs text-muted-foreground">
-            Recibe notificaciones en vivo en tu Discord cada vez que un jugador inicie partida,
-            compre un pase o canjee un cupón.
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            placeholder="https://discord.com/api/webhooks/..."
-            value={discordWebhookInput}
-            onChange={(e) => setDiscordWebhookInput(e.target.value)}
-            className="flex-1 rounded-xl bg-white/5 border border-white/15 px-3.5 py-2 text-xs text-foreground font-mono focus:outline-none focus:border-primary placeholder:text-muted-foreground/50"
-          />
-          <button
-            type="button"
-            onClick={handleTestDiscordWebhook}
-            disabled={isTestingWebhook}
-            className="rounded-xl bg-primary hover:brightness-110 px-4 py-2 text-xs font-semibold text-primary-foreground transition cursor-pointer shrink-0 disabled:opacity-50"
-          >
-            {isTestingWebhook ? "Probando..." : "Guardar y Probar Alerta"}
-          </button>
-        </div>
-
-        {webhookFeedback && (
-          <p
-            className={`text-xs font-medium ${
-              webhookFeedback.type === "success" ? "text-emerald-400" : "text-rose-400"
-            }`}
-          >
-            {webhookFeedback.msg}
-          </p>
-        )}
-
-        <div className="pt-2 border-t border-white/5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Bot Atlas en Render Cloud
-          </span>
-          <a
-            href="https://atlas-bot-2xh4.onrender.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-primary hover:underline font-mono text-[11px]"
-          >
-            <span>Verificar Diagnóstico / Despertar Bot</span>
-            <span>↗</span>
-          </a>
-        </div>
       </div>
 
       {/* Acciones de Mantenimiento */}

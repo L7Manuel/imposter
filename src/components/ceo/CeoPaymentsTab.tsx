@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { RefreshCw, CheckCircle2, DollarSign, Bell, Coins, CreditCard } from "lucide-react";
 import { reviewPaymentServerFn, savePaymentConfigServerFn } from "@/lib/coupon-server";
 import { PaymentConfig, PendingPayment, DEFAULT_PAYMENT_CONFIG } from "@/lib/payment-config";
@@ -24,21 +24,6 @@ export function CeoPaymentsTab({
   setPaymentConfig,
 }: CeoPaymentsTabProps) {
   const [savePaymentSuccess, setSavePaymentSuccess] = useState(false);
-  const [hasDiscordWebhook, setHasDiscordWebhook] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = localStorage.getItem(STORAGE_KEYS.DISCORD_WEBHOOK);
-    const hasValidHook = Boolean(
-      (stored && stored.startsWith("https://discord.com/api/webhooks/")) ||
-      (paymentConfig.discordWebhookUrl &&
-        paymentConfig.discordWebhookUrl.startsWith("https://discord.com/api/webhooks/")),
-    );
-    setHasDiscordWebhook(hasValidHook);
-    if (stored && !paymentConfig.discordWebhookUrl) {
-      setPaymentConfig((prev) => ({ ...prev, discordWebhookUrl: stored }));
-    }
-  }, [paymentConfig.discordWebhookUrl, setPaymentConfig]);
 
   const handleReview = async (paymentId: string, action: "approve" | "reject") => {
     if (!token) return;
@@ -55,16 +40,7 @@ export function CeoPaymentsTab({
   const handleSaveConfig = async () => {
     if (!token) return;
     try {
-      const webhookUrl =
-        paymentConfig.discordWebhookUrl?.trim() ||
-        (typeof window !== "undefined"
-          ? localStorage.getItem(STORAGE_KEYS.DISCORD_WEBHOOK) || undefined
-          : undefined);
-
       if (typeof window !== "undefined") {
-        if (webhookUrl && webhookUrl.startsWith("https://discord.com/api/webhooks/")) {
-          localStorage.setItem(STORAGE_KEYS.DISCORD_WEBHOOK, webhookUrl);
-        }
         localStorage.setItem(STORAGE_KEYS.PAYMENT_CONFIG, JSON.stringify(paymentConfig));
       }
 
@@ -72,7 +48,6 @@ export function CeoPaymentsTab({
         data: {
           ceoToken: token,
           config: paymentConfig,
-          ...(webhookUrl ? { discordWebhookUrl: webhookUrl } : {}),
         },
       });
 
@@ -379,58 +354,7 @@ export function CeoPaymentsTab({
         </div>
       </div>
 
-      {/* CÉLULA 4: CANAL DE ALERTAS DISCORD (WEBHOOK) */}
-      <div className="rounded-2xl glass-panel p-5 border border-indigo-500/30 bg-indigo-500/[0.03] space-y-4">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-2">
-            <Bell size={16} className="text-indigo-400" />
-            <div>
-              <h4 className="font-display text-sm text-foreground">
-                ALERTAS EN TIEMPO REAL A DISCORD
-              </h4>
-              <p className="text-[11px] text-muted-foreground">
-                Recibe avisos instantáneos de compras, comprobantes y canjes directamente en tu
-                canal
-              </p>
-            </div>
-          </div>
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
-              hasDiscordWebhook
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                : "bg-white/5 text-muted-foreground border-white/10"
-            }`}
-          >
-            {hasDiscordWebhook ? "Conectado" : "Sin Configurar"}
-          </span>
-        </div>
-
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">
-            Enlace Webhook de Discord
-          </label>
-          <input
-            type="text"
-            value={paymentConfig.discordWebhookUrl || ""}
-            onChange={(e) => {
-              const val = e.target.value.trim();
-              setPaymentConfig({
-                ...paymentConfig,
-                discordWebhookUrl: val,
-              });
-              if (val.startsWith("https://discord.com/api/webhooks/")) {
-                setHasDiscordWebhook(true);
-              } else {
-                setHasDiscordWebhook(false);
-              }
-            }}
-            placeholder="https://discord.com/api/webhooks/1234567890/abcdef..."
-            className="w-full rounded-xl bg-white/5 border border-white/15 px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:border-indigo-400"
-          />
-        </div>
-      </div>
-
-      {/* CÉLULA 5: CALCULADORA DE CONVERSIÓN EN VIVO */}
+      {/* CÉLULA 4: CALCULADORA DE CONVERSIÓN EN VIVO */}
       <div className="rounded-2xl glass-panel p-5 border border-amber-400/30 bg-amber-500/[0.03] space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -502,22 +426,14 @@ export function CeoPaymentsTab({
           {savePaymentSuccess && (
             <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 animate-in fade-in">
               <CheckCircle2 size={14} />
-              {hasDiscordWebhook
-                ? "Guardado en Paywall y alertado a Discord"
-                : "Guardado en Paywall del juego"}
+              Guardado en Paywall y sincronizado con Discord
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <Bell size={12} className={hasDiscordWebhook ? "text-emerald-400" : "text-white/40"} />
-          {hasDiscordWebhook ? (
-            <span className="text-emerald-400/90 font-medium">Discord Webhook Conectado</span>
-          ) : (
-            <span className="text-muted-foreground">
-              Sin webhook vinculado (configúralo en la pestaña Métricas)
-            </span>
-          )}
+        <div className="flex items-center gap-1.5 text-[11px] text-emerald-400/90 font-medium">
+          <Bell size={12} className="text-emerald-400" />
+          <span>Puente interno con Discord activo</span>
         </div>
       </div>
     </section>

@@ -1,5 +1,5 @@
-import React from "react";
-import { Target, ShieldAlert, Check, X } from "lucide-react";
+import React, { useMemo } from "react";
+import { Target, ShieldAlert, Check, X, Crosshair } from "lucide-react";
 
 export interface PhaseVoteProps {
   names: string[];
@@ -16,6 +16,8 @@ export interface PhaseVoteProps {
   handleDirectReveal: () => void;
   showImpostorGuessModal: boolean;
   handleImpostorGuessResult: (guessed: boolean) => void;
+  word: string;
+  categoryPool: string[];
   btnPrimary: string;
   btnDanger: string;
   btnGhost: string;
@@ -36,10 +38,21 @@ export function PhaseVote({
   handleDirectReveal,
   showImpostorGuessModal,
   handleImpostorGuessResult,
+  word,
+  categoryPool,
   btnPrimary,
   btnDanger,
   btnGhost,
 }: PhaseVoteProps) {
+  // Generar 5 opciones interactivas para el Disparo Final del Impostor (la palabra real + 4 señuelos de la misma categoría)
+  const finalShotOptions = useMemo(() => {
+    if (!word) return [];
+    const decoys = categoryPool
+      .filter((w) => w.toLowerCase() !== word.toLowerCase())
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 4);
+    return [word, ...decoys].sort((a, b) => a.localeCompare(b, "es"));
+  }, [word, categoryPool]);
   return (
     <>
       <section className="flex flex-1 flex-col items-center justify-center gap-5 text-center animate-in fade-in zoom-in-95 duration-200">
@@ -137,23 +150,51 @@ export function PhaseVote({
               </p>
             </div>
 
-            <div className="rounded-xl bg-background/60 p-3.5 text-xs text-muted-foreground border border-white/5">
-              <p className="font-semibold text-foreground mb-1">Última oportunidad del impostor:</p>
-              ¿Puede el impostor adivinar exactamente la palabra secreta de la ronda?
+            <div className="rounded-2xl bg-background/70 p-3.5 text-xs text-muted-foreground border border-white/10 space-y-2.5">
+              <div className="flex items-center justify-center gap-1.5 text-amber-300 font-bold uppercase tracking-wider text-[11px]">
+                <Crosshair size={14} />
+                <span>Disparo Final del Impostor</span>
+              </div>
+              <p className="text-[11px] text-foreground/90 leading-relaxed">
+                Pásale el teléfono a{" "}
+                <strong>
+                  {accusedIndex !== null ? getPlayerName(accusedIndex) : "el impostor"}
+                </strong>
+                . Si toca la palabra secreta correcta entre estas {finalShotOptions.length}{" "}
+                opciones, ¡roba la victoria!
+              </p>
+
+              {finalShotOptions.length > 1 && (
+                <div className="grid grid-cols-1 gap-1.5 pt-1">
+                  {finalShotOptions.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => {
+                        playPop(soundEnabled);
+                        handleImpostorGuessResult(opt === word);
+                      }}
+                      className="w-full rounded-xl bg-white/5 hover:bg-primary/20 border border-white/15 hover:border-primary/50 py-2.5 px-3 text-xs font-bold text-foreground hover:text-primary transition active:scale-95 cursor-pointer"
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-2.5">
+            <div className="flex gap-2 pt-1 border-t border-white/10">
               <button
                 onClick={() => handleImpostorGuessResult(true)}
-                className={`${btnPrimary} flex-1 text-xs py-3 flex items-center justify-center gap-1.5`}
+                className={`${btnPrimary} flex-1 text-[11px] py-2.5 flex items-center justify-center gap-1`}
               >
-                <Check size={16} /> Adivinó la palabra
+                <Check size={14} /> La dijo en voz alta
               </button>
               <button
                 onClick={() => handleImpostorGuessResult(false)}
-                className={`${btnDanger} flex-1 text-xs py-3 flex items-center justify-center gap-1.5`}
+                className={`${btnDanger} flex-1 text-[11px] py-2.5 flex items-center justify-center gap-1`}
               >
-                <X size={16} /> No la supo
+                <X size={14} /> Se rinde / Falló
               </button>
             </div>
           </div>

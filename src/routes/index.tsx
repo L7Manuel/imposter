@@ -32,6 +32,8 @@ import {
   STORAGE_KEYS,
 } from "@/lib/security";
 import {
+  checkCeoAuthServerFn,
+  verifyCeoLoginServerFn,
   consumeSingleUseCouponServerFn,
   getPaymentConfigServerFn,
   submitPaymentProofServerFn,
@@ -48,7 +50,13 @@ import {
   PartyPassPlan,
   PARTY_PASS_PLANS,
 } from "@/lib/payment-config";
-import { DEFAULT_CATEGORIES, ADULT_CATEGORY, ADULT_WORDS, PRO_CATEGORIES } from "@/data/categories";
+import {
+  DEFAULT_CATEGORIES,
+  ADULT_CATEGORY,
+  ADULT_WORDS,
+  PRO_CATEGORIES,
+  getUndercoverWord,
+} from "@/data/categories";
 import { ROUND_EVENTS, getPlayerBadge } from "@/data/game-events";
 import {
   AdultPinModal,
@@ -58,7 +66,14 @@ import {
   SettingsModal,
   ShareModal,
 } from "@/components/modals";
-import { PhaseDiscuss, PhaseResult, PhaseReveal, PhaseSetup, PhaseVote } from "@/components/game";
+import {
+  PhaseDiscuss,
+  PhaseResult,
+  PhaseReveal,
+  PhaseSetup,
+  PhaseVote,
+  OnlineRoomModal,
+} from "@/components/game";
 import {
   unlockAudio,
   playBeep,
@@ -197,7 +212,7 @@ const btnDanger = `${btn} bg-destructive text-destructive-foreground glow-danger
 
 function Game() {
   const [phase, setPhase] = useState<Phase>("setup");
-  const [setupStep, setSetupStep] = useState<1 | 2>(1);
+  const [setupStep, setSetupStep] = useState<1 | 2 | 3>(1);
   const [isResolvingResult, setIsResolvingResult] = useState<boolean>(false);
 
   // Config State (SSR-safe defaults, hydrated in useEffect)
@@ -212,8 +227,13 @@ function Game() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [vibrationEnabled, setVibrationEnabled] = useState<boolean>(true);
   const [accompliceMode, setAccompliceMode] = useState<boolean>(true);
+  const [undercoverMode, setUndercoverMode] = useState<boolean>(false);
   const [randomEventsEnabled, setRandomEventsEnabled] = useState<boolean>(false);
   const [jesterEnabled, setJesterEnabled] = useState<boolean>(false);
+  const [freeTrialUsed, setFreeTrialUsed] = useState<boolean>(false);
+  const [isTrialRoundActive, setIsTrialRoundActive] = useState<boolean>(false);
+  const [showOnlineRoomModal, setShowOnlineRoomModal] = useState<boolean>(false);
+  const [initialOnlineRoomCode, setInitialOnlineRoomCode] = useState<string | null>(null);
   const [scores, setScores] = useState<ScoreState>({ innocents: 0, impostors: 0 });
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [packStatus, setPackStatus] = useState<string>("");
@@ -282,7 +302,9 @@ function Game() {
     categoryCounts: {},
   });
 
-  const hasPro = (isProUnlocked || isCeoAdmin) && !ceoSimulateFree;
+  const hasPro =
+    (isProUnlocked || isCeoAdmin || isTrialRoundActive || Boolean(activePaymentTracker)) &&
+    !ceoSimulateFree;
 
   // Adult Mode State (+18)
   const [isAdultUnlocked, setIsAdultUnlocked] = useState<boolean>(false);
@@ -302,6 +324,7 @@ function Game() {
 
   // Round State
   const [word, setWord] = useState("");
+  const [impostorWord, setImpostorWord] = useState("");
   const [playedCategory, setPlayedCategory] = useState("");
   const [impostors, setImpostors] = useState<number[]>([]);
   const [jesterIndex, setJesterIndex] = useState<number | null>(null);
@@ -346,6 +369,22 @@ function Game() {
 
       const savedAccomplice = localStorage.getItem("impostor-accomplice");
       if (savedAccomplice !== null) setAccompliceMode(savedAccomplice === "true");
+
+      const savedUndercover = localStorage.getItem("impostor-undercover");
+      if (savedUndercover !== null) setUndercoverMode(savedUndercover === "true");
+
+      if (localStorage.getItem("impostor-free-trial-used") === "true") {
+        setFreeTrialUsed(true);
+      }
+
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const roomParam = params.get("room");
+        if (roomParam && roomParam.trim().length === 4) {
+          setInitialOnlineRoomCode(roomParam.trim().toUpperCase());
+          setShowOnlineRoomModal(true);
+        }
+      }
 
       const savedEvents = localStorage.getItem("impostor-events");
       if (savedEvents !== null) setRandomEventsEnabled(savedEvents === "true");
@@ -398,6 +437,35 @@ function Game() {
         isUnlockedOnMount = true;
         setIsCeoAdmin(true);
         setIsProUnlocked(true);
+        // Verificar en segundo plano si la llave CEO fue rotada desde otro dispositivo
+        checkCeoAuthServerFn()
+          .then((srvAuth) => {
+            if (srvAuth?.activeVerifyHash) {
+              localStorage.setItem(STORAGE_KEYS.CEO_ACTIVE_HASH, srvAuth.activeVerifyHash);
+            } else if (srvAuth && srvAuth.activeVerifyHash === null) {
+              localStorage.removeItem(STORAGE_KEYS.CEO_ACTIVE_HASH);
+            }
+            if (srvAuth && !srvAuth.isAuthorized) {
+              setIsCeoAdmin(false);
+              setIsProUnlocked(false);
+              setCeoSimulateFree(false);
+              setProExpiresAt(null);
+              setFounderNumber(null);
+              setIsAdultUnlocked(false);
+              setRandomEventsEnabled(false);
+              setJesterEnabled(false);
+              localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
+              localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
+              localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
+              localStorage.removeItem(STORAGE_KEYS.FOUNDER_NUMBER);
+              localStorage.removeItem(STORAGE_KEYS.FOUNDER_CODE);
+              localStorage.removeItem("impostor-adult-unlocked");
+              localStorage.setItem("impostor-events", "false");
+              localStorage.setItem("impostor-jester", "false");
+              document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=; path=/; max-age=0; SameSite=Lax`;
+            }
+          })
+          .catch(() => {});
       } else if (storedCeoToken) {
         localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
         document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=; path=/; max-age=0; SameSite=Lax`;
@@ -764,7 +832,26 @@ function Game() {
       return;
     }
 
-    const { role, token, couponIdHash, meta } = verifyAccessCode(proCodeInput, usedCoupons);
+    const initialVerify = verifyAccessCode(proCodeInput, usedCoupons);
+    let role = initialVerify.role;
+    let token = initialVerify.token;
+    const { couponIdHash, meta } = initialVerify;
+    if (!role && proCodeInput.trim().length >= 6) {
+      try {
+        const srvCeo = await verifyCeoLoginServerFn({ data: { rawKey: proCodeInput } });
+        if (srvCeo.authorized && srvCeo.token) {
+          role = "ceo";
+          token = srvCeo.token;
+          if (srvCeo.activeVerifyHash) {
+            localStorage.setItem(STORAGE_KEYS.CEO_ACTIVE_HASH, srvCeo.activeVerifyHash);
+          } else {
+            localStorage.removeItem(STORAGE_KEYS.CEO_ACTIVE_HASH);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
     if (role === "already_used") {
       playBeep(0.3, 200, soundEnabled);
       setProCodeFeedback({
@@ -912,8 +999,7 @@ function Game() {
     } else if (role === "vip_single" && token && couponIdHash) {
       // Cupones VIP-01 a VIP-10: Uso único estricto + 48 horas de duración
       const couponIdx = VIP_COUPON_HASHES_ORDERED.indexOf(couponIdHash) + 1;
-      const assignedName =
-        couponNames[couponIdx] || (couponIdx === 1 ? "Ivana" : `Tester #${couponIdx}`);
+      const assignedName = couponIdx === 1 ? "Ivana" : `Tester #${couponIdx}`;
       try {
         const serverCheck = await consumeSingleUseCouponServerFn({
           data: {
@@ -1057,6 +1143,19 @@ function Game() {
     const next = !accompliceMode;
     setAccompliceMode(next);
     localStorage.setItem("impostor-accomplice", String(next));
+  };
+
+  const toggleUndercoverMode = () => {
+    const next = !undercoverMode;
+    setUndercoverMode(next);
+    localStorage.setItem("impostor-undercover", String(next));
+  };
+
+  const activateFreeTrialRound = () => {
+    if (freeTrialUsed) return;
+    playFanfare(true, soundEnabled);
+    setIsTrialRoundActive(true);
+    setIsAdultUnlocked(true);
   };
 
   const toggleRandomEvents = () => {
@@ -1301,6 +1400,7 @@ function Game() {
     }));
 
     setWord(selectedWord);
+    setImpostorWord(undercoverMode ? getUndercoverWord(selectedWord, fullList) : "");
 
     // Pick impostors & optional Jester
     const indices = [...names.keys()].sort(() => Math.random() - 0.5);
@@ -1340,7 +1440,7 @@ function Game() {
     setWinReason("");
     setShowImpostorGuessModal(false);
 
-    // 🛰️ Telemetría en vivo (Avisa a Discord #metricas-imposter y al Radar CEO)
+    // Telemetría en vivo (Avisa a Discord #metricas-imposter y al Radar CEO)
     void trackGameEvent({
       type: "round_start",
       category: chosenCat,
@@ -1387,6 +1487,15 @@ function Game() {
   const resolveRoundWithSuspense = (isVictory: boolean) => {
     setIsResolvingResult(true);
     playDramaticImpact(soundEnabled);
+    if (isTrialRoundActive) {
+      setIsTrialRoundActive(false);
+      setFreeTrialUsed(true);
+      try {
+        localStorage.setItem("impostor-free-trial-used", "true");
+      } catch {
+        /* ignore */
+      }
+    }
     setTimeout(() => {
       setPhase("result");
       setIsResolvingResult(false);
@@ -1718,10 +1827,16 @@ function Game() {
           updateMinutes={updateMinutes}
           accompliceMode={accompliceMode}
           toggleAccompliceMode={toggleAccompliceMode}
+          undercoverMode={undercoverMode}
+          toggleUndercoverMode={toggleUndercoverMode}
           randomEventsEnabled={randomEventsEnabled}
           toggleRandomEvents={toggleRandomEvents}
           jesterEnabled={jesterEnabled}
           toggleJester={toggleJester}
+          freeTrialUsed={freeTrialUsed}
+          isTrialRoundActive={isTrialRoundActive}
+          activateFreeTrialRound={activateFreeTrialRound}
+          onOpenOnlineRoom={() => setShowOnlineRoomModal(true)}
           category={category}
           setCategory={setCategory}
           custom={custom}
@@ -1741,6 +1856,28 @@ function Game() {
           btnGhost={btnGhost}
         />
       )}
+
+      {/* MODAL: SALAS ONLINE EN TIEMPO REAL (QR / 4 LETRAS) */}
+      <OnlineRoomModal
+        isOpen={showOnlineRoomModal}
+        onClose={() => setShowOnlineRoomModal(false)}
+        hasPro={hasPro}
+        openPaywall={() => {
+          setShowOnlineRoomModal(false);
+          openPaywall();
+        }}
+        soundEnabled={soundEnabled}
+        playPop={playPop}
+        playFanfare={playFanfare}
+        defaultPlayerName={names[0] || "Jugador 1"}
+        category={category}
+        impostorCount={impostorCount}
+        minutes={minutes}
+        undercoverMode={undercoverMode}
+        jesterEnabled={jesterEnabled}
+        accompliceMode={accompliceMode}
+        initialJoinCode={initialOnlineRoomCode}
+      />
 
       {/* MODAL: CENTRO DE CONFIGURACIÓN Y PERSONALIZACIÓN (EXTRAÍDO A COMPONENTE) */}
       <SettingsModal
@@ -1836,6 +1973,8 @@ function Game() {
         setProCodeInput={setProCodeInput}
         handleRedeemCode={handleRedeemCode}
         proCodeFeedback={proCodeFeedback}
+        freeTrialUsed={freeTrialUsed}
+        onActivateFreeTrial={activateFreeTrialRound}
       />
 
       {/* MODAL: COMPARTIR JUEGO Y CÓDIGO QR (EXTRAÍDO A COMPONENTE) */}
@@ -1916,7 +2055,9 @@ function Game() {
           impostors={impostors}
           jesterIndex={jesterIndex}
           accompliceMode={accompliceMode}
+          undercoverMode={undercoverMode}
           word={word}
+          impostorWord={impostorWord}
           playedCategory={playedCategory}
           hasSeenRole={hasSeenRole}
           nextTurn={nextTurn}
@@ -1964,6 +2105,8 @@ function Game() {
           handleDirectReveal={handleDirectReveal}
           showImpostorGuessModal={showImpostorGuessModal}
           handleImpostorGuessResult={handleImpostorGuessResult}
+          word={word}
+          categoryPool={allCats[playedCategory] || DEFAULT_CATEGORIES.Comida || []}
           btnPrimary={btnPrimary}
           btnDanger={btnDanger}
           btnGhost={btnGhost}
@@ -1978,6 +2121,8 @@ function Game() {
           impostors={impostors}
           jesterIndex={jesterIndex}
           word={word}
+          impostorWord={impostorWord}
+          undercoverMode={undercoverMode}
           playedCategory={playedCategory}
           scores={scores}
           category={category}

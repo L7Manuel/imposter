@@ -16,15 +16,39 @@ import {
   Zap,
   Sparkles,
   Users,
+  Wifi,
+  Smartphone,
+  EyeOff,
+  Gift,
+  Sliders,
 } from "lucide-react";
 import { DEFAULT_CATEGORIES, ADULT_CATEGORY, ADULT_WORDS, PRO_CATEGORIES } from "@/data/categories";
 import { CategoryIcon } from "@/components/CategoryIcon";
 
 const FREE_MAX_PLAYERS = 6;
 
+const CATEGORY_THEME_STYLES: Record<string, string> = {
+  Aleatoria: "from-amber-500/20 via-primary/5 to-transparent border-primary/30 text-primary",
+  Comida: "from-orange-500/20 via-amber-500/5 to-transparent border-orange-400/30 text-orange-300",
+  Lugares: "from-cyan-500/20 via-sky-500/5 to-transparent border-cyan-400/30 text-cyan-300",
+  Animales:
+    "from-emerald-500/20 via-green-500/5 to-transparent border-emerald-400/30 text-emerald-300",
+  Objetos: "from-indigo-500/20 via-blue-500/5 to-transparent border-indigo-400/30 text-indigo-300",
+  Profesiones: "from-sky-500/20 via-blue-500/5 to-transparent border-sky-400/30 text-sky-300",
+  "Cine y Series":
+    "from-purple-500/20 via-violet-500/5 to-transparent border-purple-400/30 text-purple-300",
+  Deportes: "from-lime-500/20 via-emerald-500/5 to-transparent border-lime-400/30 text-lime-300",
+  "Videojuegos y Geek":
+    "from-fuchsia-500/20 via-pink-500/5 to-transparent border-fuchsia-400/30 text-fuchsia-300",
+  "Música y Artistas":
+    "from-pink-500/20 via-rose-500/5 to-transparent border-pink-400/30 text-pink-300",
+  "Países y Maravillas":
+    "from-teal-500/20 via-cyan-500/5 to-transparent border-teal-400/30 text-teal-300",
+};
+
 export interface PhaseSetupProps {
-  setupStep: 1 | 2;
-  setSetupStep: (step: 1 | 2) => void;
+  setupStep: 1 | 2 | 3;
+  setSetupStep: (step: 1 | 2 | 3) => void;
   names: string[];
   updateNames: (names: string[]) => void;
   shufflePlayers: () => void;
@@ -41,10 +65,16 @@ export interface PhaseSetupProps {
   updateMinutes: (min: number) => void;
   accompliceMode: boolean;
   toggleAccompliceMode: () => void;
+  undercoverMode: boolean;
+  toggleUndercoverMode: () => void;
   randomEventsEnabled: boolean;
   toggleRandomEvents: () => void;
   jesterEnabled: boolean;
   toggleJester: () => void;
+  freeTrialUsed: boolean;
+  isTrialRoundActive: boolean;
+  activateFreeTrialRound: () => void;
+  onOpenOnlineRoom: () => void;
   category: string;
   setCategory: (cat: string) => void;
   custom: Record<string, string[]>;
@@ -76,10 +106,16 @@ export function PhaseSetup({
   updateMinutes,
   accompliceMode,
   toggleAccompliceMode,
+  undercoverMode,
+  toggleUndercoverMode,
   randomEventsEnabled,
   toggleRandomEvents,
   jesterEnabled,
   toggleJester,
+  freeTrialUsed,
+  isTrialRoundActive,
+  activateFreeTrialRound,
+  onOpenOnlineRoom,
   category,
   setCategory,
   custom,
@@ -93,73 +129,174 @@ export function PhaseSetup({
 }: PhaseSetupProps) {
   return (
     <section className="flex flex-col gap-4 pb-8 animate-in fade-in duration-200">
-      {/* Interactive Stepper Header */}
-      <div className="grid grid-cols-2 gap-2 rounded-2xl glass-panel p-1.5 shadow-lg">
+      {/* Selector Principal: 1 Teléfono vs Sala Online Multicelular */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="relative flex items-center gap-2.5 rounded-2xl bg-primary/15 border-2 border-primary/50 p-3 shadow-[0_0_20px_rgba(234,179,8,0.15)]">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md">
+            <Smartphone size={18} />
+          </div>
+          <div className="min-w-0">
+            <span className="block font-display text-sm tracking-wider text-primary leading-none">
+              1 TELÉFONO
+            </span>
+            <span className="block text-[10px] text-foreground/80 truncate mt-0.5">
+              Pasa el móvil · Offline
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            playPop(soundEnabled);
+            onOpenOnlineRoom();
+          }}
+          className="group relative flex items-center gap-2.5 rounded-2xl glass-panel border border-accent/35 hover:border-accent bg-gradient-to-br from-accent/15 via-accent/5 to-transparent p-3 text-left transition-all hover:scale-[1.01] active:scale-95 cursor-pointer shadow-lg"
+        >
+          <span className="absolute -top-2 right-2.5 rounded-full bg-accent px-1.5 py-0.2 text-[8px] font-extrabold uppercase tracking-wider text-slate-950 shadow">
+            NUEVO · QR
+          </span>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/20 border border-accent/40 text-accent group-hover:bg-accent group-hover:text-slate-950 transition">
+            <Wifi size={18} />
+          </div>
+          <div className="min-w-0">
+            <span className="block font-display text-sm tracking-wider text-accent leading-none">
+              SALA ONLINE
+            </span>
+            <span className="block text-[10px] text-muted-foreground group-hover:text-foreground truncate mt-0.5">
+              Cada quien en su móvil
+            </span>
+          </div>
+        </button>
+      </div>
+
+      {/* Banner de 1 Ronda VIP de Cortesía Gratis (Gancho de Conversión) */}
+      {!hasPro && !freeTrialUsed && (
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500/20 via-teal-500/10 to-transparent p-3.5 shadow-lg">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-400/20 border border-emerald-400/40 text-emerald-300">
+                <Gift size={18} />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-xs font-extrabold uppercase tracking-wider text-emerald-300">
+                  Regalo de Bienvenida: 1 Ronda VIP Gratis
+                </span>
+                <p className="text-[11px] text-foreground/85 leading-tight mt-0.5">
+                  Prueba +18, El Bufón, Eventos y hasta 15 amigos por 1 partida sin pagar.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                playPop(soundEnabled);
+                activateFreeTrialRound();
+              }}
+              className="shrink-0 rounded-xl bg-emerald-400 px-3 py-2 text-xs font-extrabold text-slate-950 shadow-md transition hover:brightness-110 active:scale-95 cursor-pointer"
+            >
+              Activar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isTrialRoundActive && (
+        <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-3.5 py-2 text-center text-xs font-bold text-emerald-300">
+          Ronda VIP de Cortesía Activa — ¡Todas las categorías y modos PRO desbloqueados para esta
+          partida!
+        </div>
+      )}
+
+      {/* Barra de Navegación de 3 Pasos (1. Jugadores -> 2. Config -> 3. Categoría) */}
+      <div className="grid grid-cols-3 gap-1.5 rounded-2xl glass-panel p-1.5 shadow-lg border border-white/10">
         <button
           type="button"
           onClick={() => {
             playPop(soundEnabled);
             setSetupStep(1);
           }}
-          className={`flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold transition-all cursor-pointer ${
             setupStep === 1
               ? "bg-primary text-primary-foreground shadow-md"
               : "text-muted-foreground hover:text-foreground hover:bg-white/5"
           }`}
         >
-          <User size={14} />
-          <span>1. Jugadores ({names.length})</span>
+          <User size={13} />
+          <span className="truncate">1. Mesa ({names.length})</span>
         </button>
+
         <button
           type="button"
           onClick={() => {
             playPop(soundEnabled);
             setSetupStep(2);
           }}
-          className={`flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold transition-all cursor-pointer ${
             setupStep === 2
               ? "bg-primary text-primary-foreground shadow-md"
               : "text-muted-foreground hover:text-foreground hover:bg-white/5"
           }`}
         >
-          <LayoutGrid size={14} />
-          <span className="truncate">2. {category === "Aleatoria" ? "Categoría" : category}</span>
+          <Sliders size={13} />
+          <span className="truncate">2. Ajustes</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            playPop(soundEnabled);
+            setSetupStep(3);
+          }}
+          className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold transition-all cursor-pointer ${
+            setupStep === 3
+              ? "bg-primary text-primary-foreground shadow-md"
+              : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+          }`}
+        >
+          <LayoutGrid size={13} />
+          <span className="truncate">3. {category === "Aleatoria" ? "Tema" : category}</span>
         </button>
       </div>
 
-      {/* PASO 1: SALA DE JUGADORES, IMPOSTORES Y TIEMPO */}
+      {/* PASO 1: SALA DE JUGADORES */}
       {setupStep === 1 && (
         <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-          {/* Jugadores */}
-          <div className="glass-panel rounded-2xl p-5 shadow-2xl">
-            <div className="mb-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <User size={16} className="text-primary" />
-                <h2 className="font-semibold text-foreground">Sala de Jugadores</h2>
+          <div className="glass-panel rounded-3xl p-5 shadow-2xl border border-white/10">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/30">
+                  <User size={16} />
+                </div>
+                <div>
+                  <h2 className="font-display text-xl tracking-wide text-foreground leading-none">
+                    JUGADORES EN LA MESA
+                  </h2>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Toca cualquier nombre para editarlo ({names.length} de {hasPro ? 15 : 6})
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={shufflePlayers}
-                  title="Mezclar orden de jugadores"
-                  className="flex items-center gap-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] px-3 py-1 text-[11px] font-medium text-foreground/90 border border-white/10 transition active:scale-95 cursor-pointer"
-                >
-                  <Shuffle size={11} className="text-primary" /> Mezclar
-                </button>
-                <span className="text-[11px] text-muted-foreground/70">3–15 máx</span>
-              </div>
+              <button
+                type="button"
+                onClick={shufflePlayers}
+                title="Mezclar orden de jugadores"
+                className="flex items-center gap-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] px-3 py-1.5 text-[11px] font-semibold text-foreground/90 border border-white/10 transition active:scale-95 cursor-pointer"
+              >
+                <Shuffle size={12} className="text-primary" /> Mezclar
+              </button>
             </div>
 
-            <div className="flex max-h-60 flex-col gap-2 overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[48vh] overflow-y-auto pr-1">
               {names.map((n, i) => {
                 const badge = getPlayerBadge(i);
                 return (
                   <div
                     key={i}
-                    className="flex items-center gap-2.5 rounded-xl bg-background/60 p-2 border border-white/10 transition hover:border-white/20"
+                    className="flex items-center gap-2.5 rounded-2xl bg-background/70 px-3 py-2.5 border border-white/10 transition focus-within:border-primary/50 hover:border-white/20"
                   >
                     <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-bold text-xs ${badge.bg} ${badge.text} border ${badge.border}`}
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl font-bold text-xs ${badge.bg} ${badge.text} border ${badge.border} shadow-sm`}
                     >
                       {getPlayerInitial(i)}
                     </div>
@@ -171,7 +308,7 @@ export function PhaseSetup({
                       }}
                       placeholder={`Jugador ${i + 1}`}
                       maxLength={20}
-                      className="flex-1 bg-transparent px-2 py-1 text-sm outline-none font-medium text-foreground placeholder:text-muted-foreground/50"
+                      className="flex-1 min-w-0 bg-transparent px-1 py-0.5 text-sm outline-none font-semibold text-foreground placeholder:text-muted-foreground/50"
                     />
                     {names.length > 3 && (
                       <button
@@ -180,9 +317,9 @@ export function PhaseSetup({
                           playPop(soundEnabled);
                           updateNames(names.filter((_, j) => j !== i));
                         }}
-                        className="rounded-lg p-2 text-muted-foreground/60 transition hover:bg-destructive/20 hover:text-destructive cursor-pointer"
+                        className="rounded-lg p-1.5 text-muted-foreground/60 transition hover:bg-destructive/20 hover:text-destructive cursor-pointer"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={15} />
                       </button>
                     )}
                   </div>
@@ -202,38 +339,66 @@ export function PhaseSetup({
               }}
               className={
                 !hasPro && names.length >= FREE_MAX_PLAYERS
-                  ? "group relative mt-3 flex w-full items-center justify-between overflow-hidden rounded-xl border border-amber-400/25 bg-gradient-to-r from-amber-500/10 via-amber-400/[0.04] to-transparent px-4 py-2.5 text-sm font-medium text-foreground transition-all hover:border-amber-400/45 hover:from-amber-500/15 active:scale-[0.98] cursor-pointer"
-                  : `${btnGhost} mt-3 flex w-full items-center justify-center gap-1.5 py-2.5 text-sm`
+                  ? "group relative mt-4 flex w-full items-center justify-between overflow-hidden rounded-2xl border border-amber-400/30 bg-gradient-to-r from-amber-500/15 via-amber-400/[0.06] to-transparent px-4 py-3 text-sm font-medium text-foreground transition-all hover:border-amber-400/50 active:scale-[0.98] cursor-pointer"
+                  : `${btnGhost} mt-4 flex w-full items-center justify-center gap-1.5 py-3 text-sm font-semibold`
               }
             >
               {!hasPro && names.length >= FREE_MAX_PLAYERS ? (
                 <>
-                  <span className="flex items-center gap-2 text-xs font-semibold text-foreground/90">
+                  <span className="flex items-center gap-2 text-xs font-bold text-foreground/95">
                     <Plus size={15} className="text-amber-300" />
-                    Añadir jugador (7–15)
+                    Añadir 7º a 15º amigo a la mesa
                   </span>
-                  <span className="flex items-center gap-1 rounded-full bg-amber-400/15 border border-amber-300/30 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-amber-300">
+                  <span className="flex items-center gap-1 rounded-full bg-amber-400/20 border border-amber-300/40 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-amber-300">
                     <Crown size={10} /> PRO
                   </span>
                 </>
               ) : (
                 <>
-                  <Plus size={16} /> Añadir jugador
+                  <Plus size={16} /> Añadir jugador ({names.length}/15)
                 </>
               )}
             </button>
           </div>
 
-          {/* Steppers Rediseñados: Impostores y Tiempo */}
+          {/* Botón Flotante Paso 1 -> Paso 2 */}
+          <div className="pointer-events-none sticky bottom-5 z-40 mt-2 flex w-full justify-center">
+            <button
+              onClick={() => {
+                playPop(soundEnabled);
+                setSetupStep(2);
+              }}
+              className="pointer-events-auto flex items-center gap-3.5 rounded-full bg-primary pl-6 pr-4 py-3.5 text-primary-foreground glow-primary ring-2 ring-white/25 shadow-2xl transition-all duration-200 hover:scale-105 hover:brightness-110 active:scale-95 cursor-pointer animate-float"
+            >
+              <div className="flex flex-col items-start text-left leading-tight">
+                <span className="font-display text-base tracking-wider">CONFIGURAR PARTIDA</span>
+                <span className="text-[10px] font-bold opacity-80">
+                  Paso 2 de 3 · Modos y Reglas
+                </span>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/20 text-primary-foreground">
+                <ArrowRight size={20} />
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PASO 2: CONFIGURACIÓN DE PARTIDA Y MODOS TÁCTICOS */}
+      {setupStep === 2 && (
+        <div className="flex flex-col gap-4 animate-in fade-in duration-200">
+          {/* Controles de Impostores y Tiempo */}
           <div className="grid grid-cols-2 gap-3">
             {/* Impostores Box */}
-            <div className="flex flex-col justify-between rounded-2xl glass-panel p-4 shadow-2xl">
-              <span className="text-xs font-semibold text-muted-foreground">Impostores</span>
-              <div className="my-2.5 flex items-center justify-between">
+            <div className="flex flex-col justify-between rounded-3xl glass-panel p-4 shadow-2xl border border-white/10">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Impostores
+              </span>
+              <div className="my-3 flex items-center justify-between">
                 <button
                   aria-label="Reducir impostores"
                   disabled={impostorCount <= 1}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 text-white font-bold border border-white/20 shadow-md transition cursor-pointer disabled:opacity-30"
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 text-white font-bold border border-white/20 shadow-md transition cursor-pointer disabled:opacity-30"
                   onClick={() => {
                     playPop(soundEnabled);
                     updateImpostorCount(Math.max(1, impostorCount - 1));
@@ -242,14 +407,14 @@ export function PhaseSetup({
                   <Minus size={18} className="stroke-[2.5]" />
                 </button>
 
-                <span className="font-display text-3xl text-destructive tracking-wide drop-shadow-[0_0_12px_rgba(239,68,68,0.45)]">
+                <span className="font-display text-4xl text-destructive tracking-wide drop-shadow-[0_0_12px_rgba(239,68,68,0.45)]">
                   {Math.min(impostorCount, maxImp)}
                 </span>
 
                 <button
                   aria-label="Aumentar impostores"
                   disabled={impostorCount >= maxImp}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 text-white font-bold border border-white/20 shadow-md transition cursor-pointer disabled:opacity-30"
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 text-white font-bold border border-white/20 shadow-md transition cursor-pointer disabled:opacity-30"
                   onClick={() => {
                     playPop(soundEnabled);
                     updateImpostorCount(Math.min(maxImp, impostorCount + 1));
@@ -264,13 +429,15 @@ export function PhaseSetup({
             </div>
 
             {/* Tiempo Box */}
-            <div className="flex flex-col justify-between rounded-2xl glass-panel p-4 shadow-2xl">
-              <span className="text-xs font-semibold text-muted-foreground">Tiempo de debate</span>
-              <div className="my-2.5 flex items-center justify-between">
+            <div className="flex flex-col justify-between rounded-3xl glass-panel p-4 shadow-2xl border border-white/10">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Tiempo Debate
+              </span>
+              <div className="my-3 flex items-center justify-between">
                 <button
                   aria-label="Reducir tiempo"
                   disabled={minutes <= 1}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 text-white font-bold border border-white/20 shadow-md transition cursor-pointer disabled:opacity-30"
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 text-white font-bold border border-white/20 shadow-md transition cursor-pointer disabled:opacity-30"
                   onClick={() => {
                     playPop(soundEnabled);
                     updateMinutes(Math.max(1, minutes - 1));
@@ -279,14 +446,14 @@ export function PhaseSetup({
                   <Minus size={18} className="stroke-[2.5]" />
                 </button>
 
-                <span className="font-display text-3xl text-accent tracking-wide drop-shadow-[0_0_12px_rgba(56,189,248,0.45)]">
+                <span className="font-display text-4xl text-accent tracking-wide drop-shadow-[0_0_12px_rgba(56,189,248,0.45)]">
                   {minutes}m
                 </span>
 
                 <button
                   aria-label="Aumentar tiempo"
                   disabled={minutes >= 15}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 text-white font-bold border border-white/20 shadow-md transition cursor-pointer disabled:opacity-30"
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 hover:bg-white/20 active:scale-90 text-white font-bold border border-white/20 shadow-md transition cursor-pointer disabled:opacity-30"
                   onClick={() => {
                     playPop(soundEnabled);
                     updateMinutes(Math.min(15, minutes + 1));
@@ -299,27 +466,89 @@ export function PhaseSetup({
             </div>
           </div>
 
-          {/* Selector Rápido de Modos de Partida (1-Tap Toggles) */}
-          <div className="rounded-2xl glass-panel p-3 space-y-2">
-            <div className="grid grid-cols-3 gap-2">
-              {/* 1. Cómplices vs Modo Caos */}
+          {/* Tarjetas Visuales de Modos Especiales (2x2 Arcade Grid) */}
+          <div className="rounded-3xl glass-panel p-5 space-y-3.5 border border-white/10 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-display text-lg tracking-wider text-foreground leading-none">
+                  MODOS TÁCTICOS DE PARTIDA
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Activa variantes especiales para sorprender a la mesa
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* 1. PISTA CAMALEÓN (Palabra Señuelo para el Impostor) */}
+              <button
+                type="button"
+                onClick={() => {
+                  playPop(soundEnabled);
+                  toggleUndercoverMode();
+                }}
+                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition-all active:scale-95 cursor-pointer ${
+                  undercoverMode
+                    ? "bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.25)]"
+                    : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                }`}
+              >
+                <div className="flex w-full items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <EyeOff
+                      size={15}
+                      className={undercoverMode ? "text-emerald-300" : "text-muted-foreground"}
+                    />
+                    <span className="text-xs font-extrabold">Pista Camaleón</span>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                      undercoverMode
+                        ? "bg-emerald-400 text-slate-950"
+                        : "bg-white/10 text-muted-foreground"
+                    }`}
+                  >
+                    {undercoverMode ? "ACTIVO" : "APAGADO"}
+                  </span>
+                </div>
+                <p className="text-[11px] opacity-90 leading-snug">
+                  El impostor ve su carta roja + una palabra señuelo parecida para no quedarse en
+                  blanco al hablar.
+                </p>
+              </button>
+
+              {/* 2. CÓMPLICES VS CAOS */}
               <button
                 type="button"
                 onClick={() => {
                   playPop(soundEnabled);
                   toggleAccompliceMode();
                 }}
-                className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
+                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition-all active:scale-95 cursor-pointer ${
                   accompliceMode
-                    ? "bg-primary/15 text-primary border-primary/40 shadow-sm"
-                    : "bg-orange-500/15 text-orange-300 border-orange-500/40 shadow-sm"
+                    ? "bg-primary/15 border-primary/45 text-primary shadow-sm"
+                    : "bg-orange-500/15 border-orange-500/45 text-orange-300 shadow-sm"
                 }`}
               >
-                {accompliceMode ? <Users size={13} /> : <Shuffle size={13} />}
-                <span className="truncate">{accompliceMode ? "Cómplices" : "Modo Caos"}</span>
+                <div className="flex w-full items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    {accompliceMode ? <Users size={15} /> : <Shuffle size={15} />}
+                    <span className="text-xs font-extrabold">
+                      {accompliceMode ? "Alianza Impostora" : "Modo Caos"}
+                    </span>
+                  </div>
+                  <span className="rounded-full bg-black/25 px-2 py-0.5 text-[9px] font-bold">
+                    {accompliceMode ? "SE CONOCEN" : "A CIEGAS"}
+                  </span>
+                </div>
+                <p className="text-[11px] opacity-90 leading-snug">
+                  {accompliceMode
+                    ? "Si hay 2+ impostores en la ronda, ven el nombre de su compañero."
+                    : "Los impostores no saben quién es su aliado y pueden acusarse entre sí."}
+                </p>
               </button>
 
-              {/* 2. Eventos Relámpago (PRO) */}
+              {/* 3. EVENTOS RELÁMPAGO (PRO) */}
               <button
                 type="button"
                 onClick={() => {
@@ -330,18 +559,39 @@ export function PhaseSetup({
                   playPop(soundEnabled);
                   toggleRandomEvents();
                 }}
-                className={`relative flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
+                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition-all active:scale-95 cursor-pointer ${
                   randomEventsEnabled && hasPro
-                    ? "bg-accent/20 text-accent border-accent/40 shadow-sm"
-                    : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-foreground"
+                    ? "bg-accent/20 border-accent text-accent shadow-[0_0_18px_rgba(56,189,248,0.25)]"
+                    : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10 hover:text-foreground"
                 }`}
               >
-                <Zap size={13} className="text-amber-400" />
-                <span className="truncate">Eventos</span>
-                {!hasPro && <Crown size={11} className="text-amber-400 shrink-0" />}
+                <div className="flex w-full items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Zap size={15} className="text-amber-400" />
+                    <span className="text-xs font-extrabold">Eventos Relámpago</span>
+                  </div>
+                  {!hasPro ? (
+                    <span className="flex items-center gap-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[9px] font-bold text-amber-300">
+                      <Crown size={9} /> PRO
+                    </span>
+                  ) : (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                        randomEventsEnabled
+                          ? "bg-accent text-slate-950"
+                          : "bg-white/10 text-muted-foreground"
+                      }`}
+                    >
+                      {randomEventsEnabled ? "ACTIVO" : "APAGADO"}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] opacity-90 leading-snug">
+                  Activa reglas sorpresa al azar en el debate (solo 1 palabra, preguntas, etc.).
+                </p>
               </button>
 
-              {/* 3. El Bufón (PRO) */}
+              {/* 4. EL BUFÓN (PRO) */}
               <button
                 type="button"
                 onClick={() => {
@@ -352,39 +602,63 @@ export function PhaseSetup({
                   playPop(soundEnabled);
                   toggleJester();
                 }}
-                className={`relative flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
+                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition-all active:scale-95 cursor-pointer ${
                   jesterEnabled && hasPro
-                    ? "bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm"
-                    : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-foreground"
+                    ? "bg-purple-500/20 border-purple-400 text-purple-300 shadow-[0_0_18px_rgba(147,51,234,0.25)]"
+                    : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10 hover:text-foreground"
                 }`}
               >
-                <Sparkles size={13} className="text-purple-300" />
-                <span className="truncate">Bufón</span>
-                {!hasPro && <Crown size={11} className="text-amber-400 shrink-0" />}
+                <div className="flex w-full items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles size={15} className="text-purple-300" />
+                    <span className="text-xs font-extrabold">El Bufón</span>
+                  </div>
+                  {!hasPro ? (
+                    <span className="flex items-center gap-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[9px] font-bold text-amber-300">
+                      <Crown size={9} /> PRO
+                    </span>
+                  ) : (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                        jesterEnabled
+                          ? "bg-purple-400 text-slate-950"
+                          : "bg-white/10 text-muted-foreground"
+                      }`}
+                    >
+                      {jesterEnabled ? "ACTIVO" : "APAGADO"}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] opacity-90 leading-snug">
+                  Un tercer bando infiltrado que conoce la palabra y gana si logra que lo voten.
+                </p>
               </button>
             </div>
-
-            <p className="text-[10px] text-muted-foreground text-center leading-tight">
-              {accompliceMode
-                ? "Los impostores se conocen entre sí"
-                : "Modo Caos: los impostores no saben quién es su aliado"}
-              {randomEventsEnabled && hasPro ? " · Con retos por ronda" : ""}
-              {jesterEnabled && hasPro ? " · Bufón infiltrado" : ""}
-            </p>
           </div>
 
-          {/* Botón Flotante Inteligente */}
+          <button
+            type="button"
+            onClick={() => {
+              playPop(soundEnabled);
+              setSetupStep(1);
+            }}
+            className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground self-start px-2 py-1 transition cursor-pointer"
+          >
+            <ArrowLeft size={14} /> Volver a Jugadores ({names.length})
+          </button>
+
+          {/* Botón Flotante Paso 2 -> Paso 3 */}
           <div className="pointer-events-none sticky bottom-5 z-40 mt-2 flex w-full justify-center">
             <button
               onClick={() => {
                 playPop(soundEnabled);
-                setSetupStep(2);
+                setSetupStep(3);
               }}
               className="pointer-events-auto flex items-center gap-3.5 rounded-full bg-primary pl-6 pr-4 py-3.5 text-primary-foreground glow-primary ring-2 ring-white/25 shadow-2xl transition-all duration-200 hover:scale-105 hover:brightness-110 active:scale-95 cursor-pointer animate-float"
             >
               <div className="flex flex-col items-start text-left leading-tight">
-                <span className="font-display text-base tracking-wider">CATEGORÍAS</span>
-                <span className="text-[10px] font-bold opacity-80">Paso 2 de 2</span>
+                <span className="font-display text-base tracking-wider">ELEGIR CATEGORÍA</span>
+                <span className="text-[10px] font-bold opacity-80">Paso 3 de 3 · Mazo Secreto</span>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/20 text-primary-foreground">
                 <ArrowRight size={20} />
@@ -394,15 +668,18 @@ export function PhaseSetup({
         </div>
       )}
 
-      {/* PASO 2: GALERÍA DE CATEGORÍAS TIPO ARCADE */}
-      {setupStep === 2 && (
+      {/* PASO 3: GALERÍA DE CATEGORÍAS CON IDENTIDAD CROMÁTICA */}
+      {setupStep === 3 && (
         <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-          <div className="glass-panel rounded-2xl p-5 shadow-2xl">
+          <div className="glass-panel rounded-3xl p-5 shadow-2xl border border-white/10">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="font-semibold text-foreground">Elige la Categoría</h2>
+                <h2 className="font-display text-xl tracking-wide text-foreground">
+                  MAZO DE CATEGORÍAS
+                </h2>
                 <p className="text-[11px] text-muted-foreground">
-                  Selecciona el tema secreto para los {names.length} jugadores
+                  Elige el tema para los {names.length} jugadores ({Math.min(impostorCount, maxImp)}{" "}
+                  impostor{Math.min(impostorCount, maxImp) > 1 ? "es" : ""})
                 </p>
               </div>
               <button
@@ -434,6 +711,10 @@ export function PhaseSetup({
                   const isLockedByPro = isProCat && !hasPro;
                   const count = allCats[c]?.length ?? 0;
                   const playedCount = usedWords[c]?.length ?? 0;
+                  const themeStyle =
+                    CATEGORY_THEME_STYLES[c] ||
+                    "from-primary/15 via-white/5 to-transparent border-white/15 text-primary";
+
                   return (
                     <button
                       key={c}
@@ -450,7 +731,7 @@ export function PhaseSetup({
                           ? "bg-primary text-primary-foreground font-bold shadow-lg ring-2 ring-primary/50 border-primary scale-[1.02]"
                           : isLockedByPro
                             ? "bg-white/[0.02] hover:bg-amber-400/[0.06] text-foreground/85 border-white/10 hover:border-amber-400/30 active:scale-95"
-                            : "bg-background/60 hover:bg-white/10 text-foreground border-white/10 active:scale-95"
+                            : `bg-gradient-to-br ${themeStyle} hover:brightness-110 active:scale-95 text-foreground`
                       }`}
                     >
                       {isLockedByPro && (
@@ -465,7 +746,7 @@ export function PhaseSetup({
                         className={`flex h-10 w-10 items-center justify-center rounded-xl mb-1.5 border transition ${
                           isSelected
                             ? "bg-black/20 border-white/20 text-primary-foreground"
-                            : "bg-white/5 border-white/10 text-primary"
+                            : "bg-black/25 border-white/10 text-current"
                         }`}
                       >
                         <CategoryIcon category={c} size={18} />
@@ -475,7 +756,7 @@ export function PhaseSetup({
                         className={`mt-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${
                           isSelected
                             ? "bg-black/20 text-primary-foreground"
-                            : "bg-white/10 text-muted-foreground"
+                            : "bg-black/25 text-muted-foreground"
                         }`}
                       >
                         {c === "Aleatoria"
@@ -551,15 +832,14 @@ export function PhaseSetup({
             type="button"
             onClick={() => {
               playPop(soundEnabled);
-              setSetupStep(1);
+              setSetupStep(2);
             }}
             className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground self-start px-2 py-1 transition cursor-pointer"
           >
-            <ArrowLeft size={14} /> Volver a Jugadores ({names.length} jug,{" "}
-            {Math.min(impostorCount, maxImp)} imp)
+            <ArrowLeft size={14} /> Volver a Ajustes y Modos
           </button>
 
-          {/* Botón Flotante Inteligente */}
+          {/* Botón Flotante Inteligente: REPARTIR CARTAS */}
           <div className="pointer-events-none sticky bottom-5 z-40 mt-2 flex w-full justify-center">
             <button
               onClick={startRound}
@@ -569,9 +849,9 @@ export function PhaseSetup({
                 <Play size={20} className="fill-current ml-0.5" />
               </div>
               <div className="flex flex-col items-start text-left leading-tight">
-                <span className="font-display text-lg tracking-wider">JUGAR</span>
-                <span className="text-[10px] font-bold opacity-80 max-w-[130px] truncate">
-                  {category === "Aleatoria" ? "Aleatoria" : category}
+                <span className="font-display text-lg tracking-wider">REPARTIR CARTAS</span>
+                <span className="text-[10px] font-bold opacity-80 max-w-[140px] truncate">
+                  {category === "Aleatoria" ? "Tema Aleatorio" : category}
                 </span>
               </div>
             </button>

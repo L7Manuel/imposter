@@ -97,8 +97,8 @@ export function PhaseDiscuss({
           >
             {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, "0")}
           </span>
-          <span className="text-[10px] text-muted-foreground mt-0.5">
-            {paused ? "⏸ PAUSADO" : "En curso"}
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5 font-semibold">
+            {paused ? "EN PAUSA" : "En curso"}
           </span>
         </div>
       </div>

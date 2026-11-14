@@ -1059,6 +1059,13 @@ http
             );
           } else if (data.type === "paywall_view") {
             botLiveMetrics.paywallViews++;
+          } else if (data.type === "commerce_embed" && data.title) {
+            await sendMetricsToDiscordChannel(
+              data.title,
+              data.description || "",
+              typeof data.color === "number" ? data.color : 0xf59e0b,
+              Array.isArray(data.fields) ? data.fields : [],
+            );
           }
 
           res.writeHead(200, { "Content-Type": "application/json" });
