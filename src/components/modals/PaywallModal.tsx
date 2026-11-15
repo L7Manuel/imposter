@@ -20,17 +20,25 @@ import {
   PartyPassPlan,
   PARTY_PASS_PLANS,
   PaymentConfig,
-  PendingPayment,
   DEFAULT_PAYMENT_CONFIG,
 } from "@/lib/payment-config";
+
+export interface ActivePaymentTracker {
+  paymentId: string;
+  customerName: string;
+  reference: string;
+  plan: PartyPassPlan | "lifetime";
+  amountFormatted: string;
+  method: "Pago Móvil" | "Binance Pay";
+}
 
 export interface PaywallModalProps {
   isOpen: boolean;
   onClose: () => void;
   soundEnabled: boolean;
   playPop: (sound: boolean) => void;
-  activePaymentTracker: PendingPayment | null;
-  setActivePaymentTracker: (val: PendingPayment | null) => void;
+  activePaymentTracker: ActivePaymentTracker | null;
+  setActivePaymentTracker: (val: ActivePaymentTracker | null) => void;
   proModalView: "perks" | "checkout";
   setProModalView: (view: "perks" | "checkout") => void;
   selectedPlan: PartyPassPlan;
@@ -389,7 +397,7 @@ export function PaywallModal({
                   "8 Categorías PRO (Cine, Deportes, Geek, Objetos, Profesiones y más)",
                   "Categoría picante Fiesta +18 (60 palabras)",
                   "Rol especial El Bufón, Infiltrado Ciego y Eventos Relámpago",
-                  "Creación e importación ilimitada de listas propias",
+                  "Creación ilimitada de listas personalizadas",
                 ].map((perk, idx) => (
                   <div
                     key={idx}

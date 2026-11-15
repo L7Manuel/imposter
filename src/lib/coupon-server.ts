@@ -76,7 +76,7 @@ function getCloudflareKv(): CloudflareKVNamespace | null {
 }
 
 async function ensureVaultHydrated(): Promise<void> {
-  if (typeof process !== "undefined" && process.env?.VITEST) return;
+  if (typeof process !== "undefined" && process.env?.["VITEST"]) return;
   const now = Date.now();
   if (
     globalThis.__imposterVaultHydrated &&
@@ -146,7 +146,7 @@ async function ensureVaultHydrated(): Promise<void> {
 }
 
 async function persistVaultSnapshot(): Promise<void> {
-  if (typeof process !== "undefined" && process.env?.VITEST) return;
+  if (typeof process !== "undefined" && process.env?.["VITEST"]) return;
   try {
     globalThis.__imposterVaultLastSyncAt = Date.now();
     const snapshot: ImposterVaultSnapshot = {
@@ -232,8 +232,8 @@ export async function sendDiscordWebhookEmbed({
   const url =
     webhookUrl ||
     globalThis.__imposterDiscordWebhookUrl ||
-    (typeof process !== "undefined" && process.env?.DISCORD_METRICS_WEBHOOK_URL) ||
-    (typeof process !== "undefined" && process.env?.DISCORD_WEBHOOK_URL) ||
+    (typeof process !== "undefined" && process.env?.["DISCORD_METRICS_WEBHOOK_URL"]) ||
+    (typeof process !== "undefined" && process.env?.["DISCORD_WEBHOOK_URL"]) ||
     "";
 
   let deliveredViaWebhook = false;

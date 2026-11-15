@@ -47,14 +47,16 @@ interface CloudflareKVNamespace {
 declare global {
   var __imposterOnlineRooms: Map<string, OnlineRoomState> | undefined;
   var __imposterRoomLastKvFetch: Map<string, number> | undefined;
-  var __env__: { IMPOSTER_KV?: CloudflareKVNamespace } | undefined;
 }
 
 const ROOM_KV_PREFIX = "imposter:room:";
 const ROOM_TTL_SECONDS = 4 * 3600; // 4 horas
 
 function getCloudflareKv(): CloudflareKVNamespace | null {
-  return globalThis.__env__?.IMPOSTER_KV ?? null;
+  return (
+    (globalThis as unknown as { __env__?: { IMPOSTER_KV?: CloudflareKVNamespace } }).__env__
+      ?.IMPOSTER_KV ?? null
+  );
 }
 
 function getRoomsStore(): Map<string, OnlineRoomState> {
@@ -306,7 +308,7 @@ export const startOnlineRoomRoundServerFn = createServerFn({ method: "POST" })
     const pool =
       chosenCat === ADULT_CATEGORY
         ? ADULT_WORDS
-        : DEFAULT_CATEGORIES[chosenCat] || DEFAULT_CATEGORIES.Comida!;
+        : DEFAULT_CATEGORIES[chosenCat] || DEFAULT_CATEGORIES["Comida"]!;
     const chosenWord = pool[Math.floor(Math.random() * pool.length)] || "Pizza";
     const decoyWord = room.undercoverMode ? getUndercoverWord(chosenWord, pool) : "";
 

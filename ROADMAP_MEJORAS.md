@@ -20,7 +20,7 @@ Este documento resume el estado actual de todas las funciones implementadas en *
 | **8 Categorías Premium & Fiesta +18 (+410 palabras)**         |   👑 **PRO (Pago)**    | ✅ **Activo** |
 | **Rol Especial: El Bufón**                                    |   👑 **PRO (Pago)**    | ✅ **Activo** |
 | **Eventos Relámpago de Ronda y Ruleta de Retos**              |   👑 **PRO (Pago)**    | ✅ **Activo** |
-| **Creador e Importador de Listas Propias (JSON)**             |   👑 **PRO (Pago)**    | ✅ **Activo** |
+| **Creador de Listas Personalizadas**                          |   👑 **PRO (Pago)**    | ✅ **Activo** |
 | **Desbloqueo Provisional Instantáneo al Reportar Pago**       | 🟢 **Conversión VIP**  | ✅ **Activo** |
 | **Auto-Entrega de Pase Fundador (`#001`–`#100`) + 5 Pases Invitado** | 👑 **Fundador VIP** | ✅ **Activo** |
 | **Ventana de la Corona en 2 Pestañas (`Planes VIP` \| `Canjear Código`)** | 🟢 **UX Móvil** | ✅ **Activo** |

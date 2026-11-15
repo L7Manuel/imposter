@@ -51,11 +51,9 @@ export function CeoFoundersTab({
   const handleIssueFounder = async () => {
     if (!token) return;
     try {
+      const trimmedName = newFounderName.trim();
       const res = await issueFounderServerFn({
-        data: {
-          ceoToken: token,
-          name: newFounderName.trim() || undefined,
-        },
+        data: trimmedName ? { ceoToken: token, name: trimmedName } : { ceoToken: token },
       });
       if (res.success && res.founder) {
         setIssuedFounder(res.founder);

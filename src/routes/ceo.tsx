@@ -51,7 +51,7 @@ export const Route = createFileRoute("/ceo")({
         /* ignore */
       }
     }
-    return await checkCeoAuthServerFn({ data: { clientToken } });
+    return await checkCeoAuthServerFn(clientToken ? { data: { clientToken } } : undefined);
   },
   component: CeoPage,
 });
@@ -233,7 +233,7 @@ export function CeoPage() {
           const cfgRes = await getPaymentConfigServerFn({
             data: { defaultFallback: fallback },
           });
-          if (cfgRes.success && cfgRes.config) {
+          if (cfgRes?.config) {
             setPaymentConfig(cfgRes.config);
           }
         }
@@ -307,6 +307,7 @@ export function CeoPage() {
       }, 15000);
       return () => clearInterval(timer);
     }
+    return undefined;
   }, [isAuthorized, token, activeTab, fetchMetrics, fetchPayments]);
 
   const handleLogin = async (e: React.FormEvent) => {

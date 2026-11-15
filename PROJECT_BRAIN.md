@@ -45,7 +45,7 @@ Imposter/
 │   │   │   └── CeoMetricsTab.tsx        #    • KPIs globales, radar de dispositivos, top categorías y Webhook
 │   │   ├── game/                        # 🎮 Fases de Juego y Multijugador Online
 │   │   │   ├── PhaseSetup.tsx           #    • Wizard de 3 pasos (1. Jugadores, 2. Reglas, 3. Categorías)
-│   │   │   ├── PhaseReveal.tsx          #    • Escáner Biométrico Hold-to-Reveal + Tarjeta Roja + Pista Camaleón
+│   │   │   ├── PhaseReveal.tsx          #    • Escáner Biométrico de 2 zonas (visor superior + sensor inferior) + Pista Camaleón
 │   │   │   ├── PhaseDiscuss.tsx         #    • Reloj radial de debate + Eventos Relámpago
 │   │   │   ├── PhaseVote.tsx            #    • Mesa de votación táctil + Minijuego de 5 opciones del Impostor
 │   │   │   ├── PhaseResult.tsx          #    • Pantalla de victoria con confeti + Ruleta de Retos

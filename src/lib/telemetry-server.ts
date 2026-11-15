@@ -39,13 +39,22 @@ declare global {
   var __imposterTelemetryRateLimitMap: Map<string, number[]> | undefined;
   var __imposterProcessedTelemetryIds: Set<string> | undefined;
   var __imposterTelemetryHydrated: boolean | undefined;
+  var __imposterTelemetryLastSyncAt: number | undefined;
 }
 
 const TELEMETRY_STORAGE_KEY = "imposter:telemetry:v2";
 
 async function ensureTelemetryHydrated(): Promise<void> {
-  if (globalThis.__imposterTelemetryHydrated) return;
+  if (typeof process !== "undefined" && process.env?.["VITEST"]) return;
+  const now = Date.now();
+  if (
+    globalThis.__imposterTelemetryHydrated &&
+    now - (globalThis.__imposterTelemetryLastSyncAt ?? 0) < 2000
+  ) {
+    return;
+  }
   globalThis.__imposterTelemetryHydrated = true;
+  globalThis.__imposterTelemetryLastSyncAt = now;
   try {
     let rawJson: string | null = null;
     const kv = (
@@ -164,7 +173,7 @@ async function sendDiscordMetricsEmbed(embed: {
   color: number;
   fields: Array<{ name: string; value: string; inline?: boolean }>;
 }): Promise<void> {
-  const webhookUrl = process.env.DISCORD_METRICS_WEBHOOK_URL;
+  const webhookUrl = process.env["DISCORD_METRICS_WEBHOOK_URL"];
 
   if (!webhookUrl || !webhookUrl.startsWith("https://discord.com/api/webhooks/")) {
     return;

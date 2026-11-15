@@ -60,6 +60,7 @@ function enqueueOfflineEvent(payload: TelemetryEventPayload) {
 export function initOfflineTelemetrySync() {
   if (typeof window === "undefined") return;
   window.addEventListener("online", async () => {
+    if (isCeoDevice()) return;
     try {
       const queue = JSON.parse(
         localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]",
@@ -78,11 +79,13 @@ export function initOfflineTelemetrySync() {
 /**
  * Envía un evento de telemetría por un único canal seguro (Server-to-Server hacia Atlas),
  * con deduplicación por eventId y cola offline si el jugador no tiene internet.
+ * Excluye automáticamente cualquier dispositivo con sesión CEO activa.
  */
 export async function trackGameEvent(
   payload: Omit<TelemetryEventPayload, "device">,
   customDevice?: string,
 ): Promise<void> {
+  if (isCeoDevice()) return;
   const device = customDevice || detectUserDevice();
   const eventId =
     payload.eventId || `${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;

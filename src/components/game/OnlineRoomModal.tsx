@@ -126,15 +126,20 @@ export function OnlineRoomModal({
   const pollRoom = useCallback(async (code: string, forceFull = false) => {
     if (typeof document !== "undefined" && document.hidden && !forceFull) return;
     try {
-      const res = await getOnlineRoomStateServerFn({
-        data: {
-          code,
-          sinceUpdatedAt: forceFull ? undefined : roomUpdatedAtRef.current || undefined,
-        },
-      });
+      const payload =
+        forceFull || !roomUpdatedAtRef.current
+          ? { code }
+          : { code, sinceUpdatedAt: roomUpdatedAtRef.current };
+      const res = await getOnlineRoomStateServerFn({ data: payload });
       if (res.success && !res.unchanged && res.room) {
         roomUpdatedAtRef.current = res.room.updatedAt;
         setRoom(res.room);
+      } else if (!res.success) {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("impostor-active-online-room");
+        }
+        roomUpdatedAtRef.current = 0;
+        setRoom(null);
       }
     } catch {
       /* ignore transient poll error */

@@ -57,7 +57,7 @@ import {
   PRO_CATEGORIES,
   getUndercoverWord,
 } from "@/data/categories";
-import { ROUND_EVENTS, getPlayerBadge } from "@/data/game-events";
+import { ROUND_EVENTS, RoundEvent, getPlayerBadge } from "@/data/game-events";
 import {
   AdultPinModal,
   FounderPassesModal,
@@ -237,7 +237,6 @@ function Game() {
   const [initialOnlineRoomCode, setInitialOnlineRoomCode] = useState<string | null>(null);
   const [scores, setScores] = useState<ScoreState>({ innocents: 0, impostors: 0 });
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
-  const [packStatus, setPackStatus] = useState<string>("");
 
   // PRO / VIP & CEO Admin State
   const [isProUnlocked, setIsProUnlocked] = useState<boolean>(false);
@@ -287,8 +286,9 @@ function Game() {
   const [shareUrl, setShareUrl] = useState<string>("https://imposter.manu-07games.workers.dev");
   const [shareCopied, setShareCopied] = useState<boolean>(false);
 
-  // Mobile Native (Bloque B) State: Wake Lock & PWA Install
+  // Mobile Native (Bloque B) State: Wake Lock, Tema & PWA Install
   const [wakeLockEnabled, setWakeLockEnabled] = useState<boolean>(true);
+  const [themeMode, setThemeMode] = useState<"dark" | "light">("dark");
   const [isWakeLockActiveState, setIsWakeLockActiveState] = useState<boolean>(false);
   const [isStandalone, setIsStandalone] = useState<boolean>(false);
   const [canInstallPwa, setCanInstallPwa] = useState<boolean>(false);
@@ -367,6 +367,12 @@ function Game() {
 
       const savedWakeLock = localStorage.getItem("impostor-wake-lock");
       if (savedWakeLock !== null) setWakeLockEnabled(savedWakeLock === "true");
+
+      const savedTheme = localStorage.getItem("impostor-theme");
+      if (savedTheme === "light" || savedTheme === "dark") {
+        setThemeMode(savedTheme);
+        document.documentElement.setAttribute("data-theme", savedTheme);
+      }
 
       const savedAccomplice = localStorage.getItem("impostor-accomplice");
       if (savedAccomplice !== null) setAccompliceMode(savedAccomplice === "true");
@@ -1221,6 +1227,11 @@ function Game() {
     setProExpiresAt(null);
     setFounderNumber(null);
     setWakeLockEnabled(true);
+    setThemeMode("dark");
+    localStorage.removeItem("impostor-theme");
+    if (typeof document !== "undefined") {
+      document.documentElement.removeAttribute("data-theme");
+    }
     setCategory("Aleatoria");
     setScores({ innocents: 0, impostors: 0 });
     localStorage.removeItem("impostor-names");
@@ -1252,6 +1263,16 @@ function Game() {
     localStorage.setItem("impostor-wake-lock", String(next));
   };
 
+  const toggleThemeMode = () => {
+    playPop(soundEnabled);
+    const next = themeMode === "dark" ? "light" : "dark";
+    setThemeMode(next);
+    localStorage.setItem("impostor-theme", next);
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", next);
+    }
+  };
+
   const handleInstallPwa = async () => {
     playPop(soundEnabled);
     if (isStandalone) {
@@ -1267,45 +1288,6 @@ function Game() {
       }
     }
     setShowInstallModal(true);
-  };
-
-  const handleExportCategories = async () => {
-    try {
-      const payload = JSON.stringify(custom);
-      await navigator.clipboard.writeText(payload);
-      setPackStatus("¡Copiado al portapapeles!");
-      setTimeout(() => setPackStatus(""), 2500);
-    } catch {
-      setPackStatus("No se pudo copiar");
-      setTimeout(() => setPackStatus(""), 2500);
-    }
-  };
-
-  const handleImportCategories = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text.length > 50000) {
-        setPackStatus("El texto es demasiado grande");
-        setTimeout(() => setPackStatus(""), 2500);
-        return;
-      }
-      const parsed = JSON.parse(text);
-      const sanitized = sanitizeImportedCategories(parsed, [
-        "Aleatoria",
-        ADULT_CATEGORY,
-        ...Object.keys(DEFAULT_CATEGORIES),
-      ]);
-      if (sanitized) {
-        const merged = { ...custom, ...sanitized };
-        saveCustom(merged);
-        setPackStatus("¡Categorías importadas y verificadas!");
-      } else {
-        setPackStatus("Formato o contenido no válido");
-      }
-    } catch {
-      setPackStatus("Copia primero un pack válido");
-    }
-    setTimeout(() => setPackStatus(""), 2500);
   };
 
   const updateScore = (winner: "innocents" | "impostors") => {
@@ -1906,10 +1888,7 @@ function Game() {
           setNewCat={setNewCat}
           newWords={newWords}
           setNewWords={setNewWords}
-          handleExportCategories={handleExportCategories}
-          handleImportCategories={handleImportCategories}
           openPaywall={openPaywall}
-          packStatus={packStatus}
           isAdultUnlocked={isAdultUnlocked}
           setIsAdultUnlocked={setIsAdultUnlocked}
           openPinModal={(mode) => {
@@ -1927,6 +1906,8 @@ function Game() {
           toggleVibration={toggleVibration}
           wakeLockEnabled={wakeLockEnabled}
           toggleWakeLock={toggleWakeLock}
+          themeMode={themeMode}
+          toggleThemeMode={toggleThemeMode}
           handleInstallPwa={handleInstallPwa}
           isStandalone={isStandalone}
           scores={scores}
@@ -2128,7 +2109,7 @@ function Game() {
           showImpostorGuessModal={showImpostorGuessModal}
           handleImpostorGuessResult={handleImpostorGuessResult}
           word={word}
-          categoryPool={allCats[playedCategory] || DEFAULT_CATEGORIES.Comida || []}
+          categoryPool={allCats[playedCategory] || DEFAULT_CATEGORIES["Comida"] || []}
           btnPrimary={btnPrimary}
           btnDanger={btnDanger}
           btnGhost={btnGhost}

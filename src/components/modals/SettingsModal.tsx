@@ -4,8 +4,6 @@ import {
   X,
   Sparkles,
   Crown,
-  Share2,
-  Download,
   Trash2,
   KeyRound,
   Lock,
@@ -28,10 +26,7 @@ export interface SettingsModalProps {
   setNewCat: (cat: string) => void;
   newWords: string;
   setNewWords: (words: string) => void;
-  handleExportCategories: () => void;
-  handleImportCategories: () => void;
   openPaywall: () => void;
-  packStatus: string | null;
   isAdultUnlocked: boolean;
   setIsAdultUnlocked: (unlocked: boolean) => void;
   openPinModal: (mode: "unlock" | "change") => void;
@@ -41,6 +36,8 @@ export interface SettingsModalProps {
   toggleVibration: () => void;
   wakeLockEnabled: boolean;
   toggleWakeLock: () => void;
+  themeMode: "dark" | "light";
+  toggleThemeMode: () => void;
   handleInstallPwa: () => void;
   isStandalone: boolean;
   scores: { innocents: number; impostors: number };
@@ -67,10 +64,7 @@ export function SettingsModal({
   setNewCat,
   newWords,
   setNewWords,
-  handleExportCategories,
-  handleImportCategories,
   openPaywall,
-  packStatus,
   isAdultUnlocked,
   setIsAdultUnlocked,
   openPinModal,
@@ -80,6 +74,8 @@ export function SettingsModal({
   toggleVibration,
   wakeLockEnabled,
   toggleWakeLock,
+  themeMode,
+  toggleThemeMode,
   handleInstallPwa,
   isStandalone,
   scores,
@@ -129,52 +125,21 @@ export function SettingsModal({
                   </span>
                 )}
               </span>
-              <div className="flex items-center gap-1.5">
-                {Object.keys(custom).length > 0 && (
-                  <button
-                    onClick={handleExportCategories}
-                    title="Copiar pack al portapapeles"
-                    className="flex items-center gap-1 rounded-lg bg-white/10 hover:bg-white/20 px-2 py-1 text-[10px] font-semibold text-foreground transition cursor-pointer"
-                  >
-                    <Share2 size={11} /> Copiar Pack
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    if (!hasPro) {
-                      onClose();
-                      openPaywall();
-                      return;
-                    }
-                    handleImportCategories();
-                  }}
-                  title="Pegar pack desde el portapapeles"
-                  className="flex items-center gap-1 rounded-lg bg-white/10 hover:bg-white/20 px-2 py-1 text-[10px] font-semibold text-foreground transition cursor-pointer"
-                >
-                  <Download size={11} /> Importar
-                </button>
-              </div>
             </div>
-
-            {packStatus && (
-              <p className="text-[11px] font-semibold text-emerald-400 animate-pulse">
-                {packStatus}
-              </p>
-            )}
 
             <div className="flex flex-col gap-2">
               <input
                 value={newCat}
                 onChange={(e) => setNewCat(e.target.value)}
                 placeholder="Nombre de la lista (ej. Anime, Youtubers)"
-                className="rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                className="rounded-xl border border-white/15 bg-background/80 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
               />
               <textarea
                 value={newWords}
                 onChange={(e) => setNewWords(e.target.value)}
                 placeholder="Palabras separadas por comas (mínimo 3)"
                 rows={2}
-                className="resize-none rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                className="resize-none rounded-xl border border-white/15 bg-background/80 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
               />
               {(() => {
                 const list = newWords
@@ -363,6 +328,32 @@ export function SettingsModal({
                 <span
                   className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
                     vibrationEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Modo Claro / Tono Día */}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-sky-400" />
+                  Modo Claro (Día)
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  Tonos claros para mejor lectura al aire libre
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleThemeMode}
+                className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors cursor-pointer overflow-hidden ${
+                  themeMode === "light" ? "bg-primary" : "bg-white/20"
+                }`}
+              >
+                <span
+                  className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    themeMode === "light" ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
               </button>

@@ -17,13 +17,13 @@ Un juego de fiesta estilo _Spyfall_ y _Among Us_ de deducción social, misterio 
   - El impostor siempre ve su **Tarjeta Roja de Impostor** garantizada, y cuando este modo está activo recibe además una **Pista Camaleón** (palabra señuelo del mismo campo semántico) para camuflarse durante el debate.
 - **🎯 Minijuego de Última Oportunidad (5 Opciones Táctiles)**:
   - Si el grupo descubre al impostor en la votación, este tiene un intento final para robar la victoria eligiendo la palabra secreta real entre **5 botones táctiles** (1 palabra real + 4 señuelos de la misma categoría).
-- **🪪 Escáner Biométrico (_Hold-to-Reveal_)**:
-  - Tarjeta táctil con haz láser animado por GPU y zumbido sintetizado. El rol solo se muestra mientras mantienes presionado el sensor.
+- **🪪 Escáner Biométrico Despejado (_Hold-to-Reveal_)**:
+  - Tarjeta de 2 zonas: visor superior de alta legibilidad (`Space Grotesk`) y sensor inferior para apoyar el pulgar sin tapar la palabra secreta. Incluye modo **Oscuro** y **Modo Claro (Día)** en Configuración.
 - **📚 11 Categorías Oficiales & +560 Palabras**:
   - **3 Gratuitas (Base)**: _Comida, Lugares, Animales_ (150 palabras).
   - **8 Exclusivas (PRO)**: _Objetos, Profesiones, Cine y Series, Deportes, Videojuegos y Geek, Música y Artistas, Países y Maravillas, Fiesta +18_ (+410 palabras).
   - **🔞 Sección Fiesta +18 (PRO)**: 60 palabras picantes para adultos protegidas con PIN parental personalizable de 4 dígitos.
-  - **✨ Categorías Personalizadas (PRO)**: Crea tus propias listas o exporta/importa packs completos en JSON desde el portapapeles.
+  - **✨ Categorías Personalizadas (PRO)**: Crea tus propias listas temáticas directamente desde Configuración.
 - **🃏 Rol Especial: El Bufón (PRO)**: Un jugador conoce la palabra secreta pero gana en solitario si logra actuar sospechoso y hacer que el grupo lo vote.
 - **⚡ Eventos Relámpago de Ronda y Ruleta de Retos (PRO)**: Modificadores sorpresa para el debate y ruleta de penitencias al finalizar la partida.
 - **👑 Sistema Party Pass PRO, Prueba Gratuita de 1 Ronda & Auto-Entrega de Fundadores**:
@@ -64,7 +64,7 @@ Un juego de fiesta estilo _Spyfall_ y _Among Us_ de deducción social, misterio 
 | **Packs PRO Exclusivos (410+ palabras)** | 🔒 Bloqueado                               | ✅ _Cine, Deportes, Geek, Objetos, Profesiones, Música, Países_ |
 | **Categoría Picante Fiesta +18**         | 🔒 Bloqueado                               | ✅ **60 palabras para adultos** (con PIN)                       |
 | **Modos y Roles Especiales**             | Modo Cómplice y Modo Caos                  | + **Pista Camaleón**, **El Bufón** y **Eventos Relámpago**      |
-| **Listas Personalizadas**                | 🔒 Bloqueado                               | ✅ Creación, exportación e importación JSON                     |
+| **Listas Personalizadas**                | 🔒 Bloqueado                               | ✅ Creación ilimitada de listas propias                         |
 | **Salas Online & Código QR**             | ✅ Incluidas                               | ✅ Incluidas                                                    |
 
 ---
