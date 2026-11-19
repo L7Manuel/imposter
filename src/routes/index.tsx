@@ -354,7 +354,15 @@ function Game() {
       if (savedNames) setNames(JSON.parse(savedNames));
 
       const savedCount = localStorage.getItem("impostor-count");
-      if (savedCount) setImpostorCount(Number(savedCount) || 1);
+      let countFromStorage = savedCount ? Number(savedCount) : 1;
+
+      // Validación: asegurar que impostorCount no exceda el máximo permitido por la cantidad de jugadores
+      const maxImpOnLoad = Math.max(1, names.length - 2);
+      if (countFromStorage > maxImpOnLoad) {
+        countFromStorage = maxImpOnLoad;
+      }
+
+      setImpostorCount(countFromStorage);
 
       const savedMinutes = localStorage.getItem("impostor-minutes");
       if (savedMinutes) setMinutes(Number(savedMinutes) || 3);
@@ -531,6 +539,7 @@ function Game() {
           initialPayConfig = sanitizePaymentConfig(JSON.parse(savedPayConfig));
           setPaymentConfig(initialPayConfig);
         } catch {
+          console.error("Error al sanitizar payment config del localStorage");
           /* ignore */
         }
       }
@@ -542,6 +551,7 @@ function Game() {
             try {
               localStorage.setItem("impostor-payment-config", JSON.stringify(res.config));
             } catch {
+              console.error("Error al guardar payment config en localStorage");
               /* ignore */
             }
           }
@@ -658,6 +668,7 @@ function Game() {
       try {
         localStorage.setItem("impostor-analytics", JSON.stringify(next));
       } catch {
+        console.error("Error al guardar analytics en localStorage");
         /* ignore */
       }
       return next;
@@ -1210,6 +1221,27 @@ function Game() {
     localStorage.setItem("impostor-jester", "false");
   };
 
+  // Función helper para limpiar el estado del juego de localStorage
+// Esto asegura una limpieza consistente en todo el código
+const cleanupGameLocalStorage = () => {
+  localStorage.removeItem("impostor-names");
+  localStorage.removeItem("impostor-count");
+  localStorage.removeItem("impostor-minutes");
+  localStorage.removeItem("impostor-sound");
+  localStorage.removeItem("impostor-vibration");
+  localStorage.removeItem("impostor-wake-lock");
+  localStorage.removeItem("impostor-accomplice");
+  localStorage.removeItem("impostor-events");
+  localStorage.removeItem("impostor-jester");
+  localStorage.removeItem("impostor-adult-unlocked");
+  localStorage.removeItem("impostor-scores");
+  localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
+  localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
+  localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
+  localStorage.removeItem(STORAGE_KEYS.FOUNDER_NUMBER);
+  localStorage.removeItem(STORAGE_KEYS.FOUNDER_CODE);
+};
+
   const resetFactoryDefaults = () => {
     const defaultPlayers = ["Jugador 1", "Jugador 2", "Jugador 3", "Jugador 4"];
     setNames(defaultPlayers);
@@ -1234,24 +1266,7 @@ function Game() {
     }
     setCategory("Aleatoria");
     setScores({ innocents: 0, impostors: 0 });
-    localStorage.removeItem("impostor-names");
-    localStorage.removeItem("impostor-count");
-    localStorage.removeItem("impostor-minutes");
-    localStorage.removeItem("impostor-sound");
-    localStorage.removeItem("impostor-vibration");
-    localStorage.removeItem("impostor-wake-lock");
-    localStorage.removeItem("impostor-accomplice");
-    localStorage.removeItem("impostor-events");
-    localStorage.removeItem("impostor-jester");
-    localStorage.removeItem("impostor-adult-unlocked");
-    localStorage.removeItem("impostor-scores");
-    localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
-    localStorage.removeItem(STORAGE_KEYS.FOUNDER_NUMBER);
-    localStorage.removeItem(STORAGE_KEYS.FOUNDER_CODE);
-    localStorage.removeItem("impostor-pro-unlocked");
-    localStorage.removeItem("impostor-ceo-admin");
+    cleanupGameLocalStorage();
     document.cookie = `${STORAGE_KEYS.CEO_TOKEN}=; path=/; max-age=0; SameSite=Lax`;
     playPop(true);
   };

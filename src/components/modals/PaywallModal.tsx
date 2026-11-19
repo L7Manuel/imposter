@@ -105,13 +105,13 @@ export function PaywallModal({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex justify-center bg-black/92 sm:backdrop-blur-md p-4 animate-in fade-in duration-150 ${
+      className={`fixed inset-0 z-50 bg-black/90 backdrop-blur-sm overflow-x-hidden overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-150 ${
         !activePaymentTracker && proModalView === "perks" && activeSubTab === "code"
           ? "items-start sm:items-center pt-8 sm:pt-4"
           : "items-center"
       }`}
     >
-      <div className="flex max-h-[92vh] w-full max-w-sm flex-col rounded-3xl glass-panel border-2 border-amber-400/50 shadow-[0_0_40px_rgba(245,158,11,0.25)] overflow-hidden">
+      <div className="relative max-h-[95vh] w-full max-w-md rounded-3xl glass-panel border-2 border-amber-400/50 shadow-[0_0_40px_rgba(245,158,11,0.25)] overflow-hidden transform scale-100 sm:scale-105">
         {/* Header VIP / Checkout */}
         <div className="relative bg-gradient-to-br from-amber-500/25 via-yellow-500/10 to-transparent px-5 pt-4 pb-3.5 border-b border-white/10 text-center">
           <button

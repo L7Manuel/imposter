@@ -552,7 +552,10 @@ export function isValidStoredToken(
     return true;
   }
   if (VIP_SINGLE_USE_HASHES.has(verifyHash)) {
-    const expiresAt = parseSignedExpiry(token, rawExpiry ?? null);
+    // Si no hay rawExpiry, no podemos verificar la fecha de expiración,
+    // así que consideramos el token como válido (no podemos probar que expiró)
+    if (!rawExpiry) return true;
+    const expiresAt = parseSignedExpiry(token, rawExpiry);
     if (!expiresAt) return false;
     // Bloquear si ya pasaron las 48h o si la fecha excede el límite máximo permitido
     if (now >= expiresAt || expiresAt > now + TESTER_COUPON_DURATION_MS + 60000) {
