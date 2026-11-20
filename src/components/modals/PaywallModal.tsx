@@ -105,15 +105,15 @@ export function PaywallModal({
 
   return (
     <div
-      className={`fixed inset-0 z-50 bg-black/90 backdrop-blur-sm overflow-x-hidden overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-150 ${
+      className={`fixed inset-0 z-50 bg-black/90 sm:backdrop-blur-sm overflow-x-hidden overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-150 ${
         !activePaymentTracker && proModalView === "perks" && activeSubTab === "code"
           ? "items-start sm:items-center pt-8 sm:pt-4"
           : "items-center"
       }`}
     >
-      <div className="relative w-full max-w-md rounded-3xl glass-panel border-2 border-amber-400/50 shadow-[0_0_40px_rgba(245,158,11,0.25)] overflow-hidden overflow-x-hidden min-h-fit">
+      <div className="relative flex w-full max-w-md flex-col overflow-hidden rounded-3xl glass-panel border-2 border-amber-400/50 shadow-[0_0_40px_rgba(245,158,11,0.25)] max-h-[calc(100vh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)]">
         {/* Header VIP / Checkout */}
-        <div className="relative bg-gradient-to-br from-amber-500/25 via-yellow-500/10 to-transparent px-5 pt-4 pb-3.5 border-b border-white/10 text-center">
+        <div className="relative shrink-0 bg-gradient-to-br from-amber-500/25 via-yellow-500/10 to-transparent px-5 pt-4 pb-3.5 border-b border-white/10 text-center">
           <button
             onClick={() => {
               playPop(soundEnabled);
@@ -209,7 +209,7 @@ export function PaywallModal({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto smooth-scroll p-5 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto smooth-scroll p-5 space-y-4">
           {activePaymentTracker ? (
             <div className="text-center space-y-4 py-2">
               <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-400/20 border-2 border-emerald-400 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
