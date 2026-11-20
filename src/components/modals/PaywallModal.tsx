@@ -111,7 +111,7 @@ export function PaywallModal({
           : "items-center"
       }`}
     >
-      <div className="relative max-h-[95vh] w-full max-w-md rounded-3xl glass-panel border-2 border-amber-400/50 shadow-[0_0_40px_rgba(245,158,11,0.25)] overflow-hidden transform scale-100 sm:scale-105">
+      <div className="relative w-full max-w-md rounded-3xl glass-panel border-2 border-amber-400/50 shadow-[0_0_40px_rgba(245,158,11,0.25)] overflow-hidden overflow-x-hidden min-h-fit">
         {/* Header VIP / Checkout */}
         <div className="relative bg-gradient-to-br from-amber-500/25 via-yellow-500/10 to-transparent px-5 pt-4 pb-3.5 border-b border-white/10 text-center">
           <button
@@ -412,7 +412,7 @@ export function PaywallModal({
               {/* Selector de Planes Party Pass */}
               <div className="space-y-2">
                 {/* 3 Pases Temporales */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {(["day", "weekend", "month"] as const).map((planKey) => {
                     const plan = PARTY_PASS_PLANS[planKey];
                     const isSelected = selectedPlan === planKey;
@@ -594,7 +594,7 @@ export function PaywallModal({
               )}
 
               {/* Selector de Pestañas de Pago */}
-              <div className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-black/50 border border-white/10 text-center">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-1 p-1 rounded-2xl bg-black/50 border border-white/10 text-center">
                 <button
                   type="button"
                   onClick={() => {
