@@ -29,6 +29,8 @@ export default defineConfig({
           globIgnores: ["**/node_modules/**/*", "sw.js", "workbox-*.js"],
           navigateFallback: null,
           cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
           offlineGoogleAnalytics: false,
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
           runtimeCaching: [
@@ -56,13 +58,27 @@ export default defineConfig({
               },
             },
             {
+              // Assets con hash de Vite (nombre inmutable): caché primero.
+              urlPattern: /\/assets\/.+-[A-Za-z0-9_-]{8}\.(?:js|css)$/,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "hashed-assets",
+                expiration: {
+                  maxEntries: 80,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 año
+                },
+              },
+            },
+            {
+              // JS/CSS/JSON sin hash: red primero para no servir versiones viejas.
               urlPattern: /\.(?:js|css|json)$/,
-              handler: "StaleWhileRevalidate",
+              handler: "NetworkFirst",
               options: {
                 cacheName: "static-resources",
+                networkTimeoutSeconds: 3,
                 expiration: {
                   maxEntries: 50,
-                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 días
+                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7 días
                 },
               },
             },

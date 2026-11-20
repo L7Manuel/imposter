@@ -5,6 +5,16 @@
 @theme inline {
   --font-display: "Bungee", system-ui, sans-serif;
   --font-sans: "Space Grotesk", system-ui, sans-serif;
+  /* Escala tipográfica compensada: el root baja a 16px, así que estos valores
+     mantienen el mismo tamaño de texto físico que con el antiguo root de 17px. */
+  --text-xs: 0.796875rem; /* 12.75px (antes 0.75rem × 17) */
+  --text-sm: 0.9296875rem; /* 14.875px */
+  --text-base: 1.0625rem; /* 17px */
+  --text-lg: 1.1953125rem; /* 19.125px */
+  --text-xl: 1.328125rem; /* 21.25px */
+  --text-2xl: 1.59375rem; /* 25.5px */
+  --text-3xl: 1.9921875rem; /* 31.875px */
+  --text-4xl: 2.390625rem; /* 38.25px */
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
@@ -58,12 +68,14 @@
   html {
     background-color: oklch(0.12 0.04 260);
     touch-action: manipulation;
-    font-size: 17px;
+    font-size: 16px;
   }
   body {
     background-color: transparent;
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    /* Mantiene el texto base a 17px aunque el root sea 16px. */
+    font-size: 1.0625rem;
     touch-action: manipulation;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -326,7 +338,8 @@ html[data-theme="light"] .text-primary {
 
 .text-\[10px\],
 .text-\[11px\] {
-  font-size: 0.78rem;
+  /* 0.83rem × 16px = 13.28px (equivalente al anterior 0.78rem × 17px). */
+  font-size: 0.83rem;
   line-height: 1.35;
 }
 

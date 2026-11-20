@@ -22,6 +22,18 @@ function isRefused(): boolean {
   return false;
 }
 
+// Evita recargas dobles si varios eventos de control llegan seguidos.
+let reloading = false;
+// Recarga diferida: si hay una actualización mientras la app está en primer
+// plano, esperamos a que pase a segundo plano para no cortar una partida.
+let pendingReload = false;
+
+function reloadSafely() {
+  if (reloading) return;
+  reloading = true;
+  window.location.reload();
+}
+
 export async function registerServiceWorker() {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
   if (isRefused()) {
@@ -31,8 +43,44 @@ export async function registerServiceWorker() {
     );
     return;
   }
+
   try {
-    await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    // updateViaCache: "none" evita que el propio sw.js se sirva desde la caché
+    // HTTP del navegador, que es la causa típica de "el deploy no aparece".
+    const reg = await navigator.serviceWorker.register("/sw.js", {
+      scope: "/",
+      updateViaCache: "none",
+    });
+
+    // Si ya había un SW controlando la app y se activa uno nuevo (nuevo deploy),
+    // recargamos una sola vez para que documento y assets queden sincronizados.
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (document.visibilityState === "hidden") reloadSafely();
+        else pendingReload = true;
+      });
+    }
+
+    let lastUpdateCheck = 0;
+    const checkForUpdate = () => {
+      const now = Date.now();
+      if (now - lastUpdateCheck < 60_000) return;
+      lastUpdateCheck = now;
+      void reg.update().catch(() => {});
+    };
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        if (pendingReload) reloadSafely();
+        return;
+      }
+      // Al volver a la app (móvil: desbloquear/abrir) buscamos versión nueva.
+      checkForUpdate();
+    });
+    window.addEventListener("online", checkForUpdate);
+
+    // Primera comprobación en segundo plano, sin bloquear el arranque.
+    checkForUpdate();
   } catch {
     /* ignore */
   }
