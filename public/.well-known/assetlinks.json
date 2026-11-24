@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "dev.manu07games.imposter",
+      "sha256_cert_fingerprints": [
+        "15:1D:9F:FF:8B:6E:9B:32:B8:F3:2A:15:1D:22:D9:F3:5E:30:CC:6B:B5:9A:6A:B7:62:69:21:B4:22:52:96:6F"
+      ]
+    }
+  }
+]
