@@ -586,7 +586,7 @@ export function OnlineRoomModal({
                 onPointerLeave={() => setIsHoldingCard(false)}
                 onPointerCancel={() => setIsHoldingCard(false)}
                 onContextMenu={(e) => e.preventDefault()}
-                className={`relative flex aspect-square w-full max-w-[260px] cursor-pointer select-none touch-none flex-col items-center justify-center overflow-hidden rounded-3xl p-6 transition-all duration-300 border-2 ${
+                className={`relative flex aspect-square w-full max-w-[260px] cursor-pointer select-none touch-none flex-col items-center justify-center overflow-hidden rounded-3xl p-6 transition duration-300 border-2 ${
                   isHoldingCard
                     ? isMyRoleImpostor
                       ? "bg-destructive/95 text-destructive-foreground border-destructive glow-danger scale-[1.02]"

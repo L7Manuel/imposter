@@ -31,6 +31,16 @@ export function ConfettiCanvas({ winner }: ConfettiProps) {
   useEffect(() => {
     if (!winner) return;
 
+    // Sin festejo animado si el usuario pidió movimiento reducido.
+    if (
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+
+    const lowPerf = document.documentElement.getAttribute("data-perf") === "low";
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -56,8 +66,8 @@ export function ConfettiCanvas({ winner }: ConfettiProps) {
           ? JESTER_COLORS
           : IMPOSTOR_COLORS;
 
-    // Create 90 festive particles
-    const particleCount = Math.min(100, Math.floor(width / 7) + 40);
+    // Create festive particles (menos en modo rendimiento)
+    const particleCount = lowPerf ? 40 : Math.min(100, Math.floor(width / 7) + 40);
     const particles: Particle[] = [];
 
     for (let i = 0; i < particleCount; i++) {

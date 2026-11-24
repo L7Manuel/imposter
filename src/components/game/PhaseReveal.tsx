@@ -56,7 +56,7 @@ export function PhaseReveal({
             return (
               <div
                 key={idx}
-                className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                className={`h-1.5 flex-1 rounded-full transition duration-300 ${
                   isDone
                     ? "bg-primary"
                     : isCurrent
@@ -100,7 +100,7 @@ export function PhaseReveal({
         onPointerLeave={handleEndHold}
         onPointerCancel={handleEndHold}
         onContextMenu={(e) => e.preventDefault()}
-        className={`relative flex min-h-[360px] w-full max-w-xs cursor-pointer select-none touch-none flex-col justify-between overflow-hidden rounded-3xl p-5 transition-all duration-200 border-2 ${
+        className={`relative flex min-h-[360px] w-full max-w-xs cursor-pointer select-none touch-none flex-col justify-between overflow-hidden rounded-3xl p-5 transition duration-200 border-2 ${
           isHolding
             ? isTurnImpostor
               ? "bg-destructive text-destructive-foreground border-red-300 glow-danger scale-[1.02]"
@@ -116,9 +116,11 @@ export function PhaseReveal({
         <div className="pointer-events-none absolute bottom-3 left-3 h-4 w-4 border-b-2 border-l-2 border-current opacity-40 rounded-bl" />
         <div className="pointer-events-none absolute bottom-3 right-3 h-4 w-4 border-b-2 border-r-2 border-current opacity-40 rounded-br" />
 
-        {/* Animated Laser Sweep */}
+        {/* Animated Laser Sweep (transform en el compositor, sin layout) */}
         {isHolding && (
-          <div className="pointer-events-none absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-white to-transparent shadow-[0_0_15px_#fff] animate-laser" />
+          <div className="pointer-events-none absolute inset-0 overflow-hidden animate-laser">
+            <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-gradient-to-r from-transparent via-white to-transparent shadow-[0_0_15px_#fff]" />
+          </div>
         )}
 
         {/* ZONA SUPERIOR: VISOR DESPEJADO (Encima del dedo) */}
@@ -226,7 +228,7 @@ export function PhaseReveal({
 
         {/* ZONA INFERIOR: SENSOR BIOMÉTRICO PARA EL PULGAR */}
         <div
-          className={`mt-2 flex items-center justify-center gap-3 rounded-2xl border px-4 py-3 transition-all ${
+          className={`mt-2 flex items-center justify-center gap-3 rounded-2xl border px-4 py-3 transition ${
             isHolding
               ? isTurnImpostor || isTurnJester
                 ? "bg-black/35 border-white/25 text-white"

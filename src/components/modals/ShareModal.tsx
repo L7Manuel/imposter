@@ -23,7 +23,7 @@ export function ShareModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 sm:backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="flex w-full max-w-xs flex-col items-center gap-4 rounded-3xl glass-panel p-6 border border-white/15 shadow-2xl text-center">
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center gap-2">
@@ -74,7 +74,7 @@ export function ShareModal({
         <button
           type="button"
           onClick={onShare}
-          className="rounded-xl px-4 py-3 font-semibold transition-all duration-150 active:scale-95 disabled:opacity-30 select-none cursor-pointer bg-primary text-primary-foreground glow-primary hover:brightness-110 shadow-lg active:brightness-125 w-full text-sm flex items-center justify-center gap-2"
+          className="rounded-xl px-4 py-3 font-semibold transition duration-150 active:scale-95 disabled:opacity-30 select-none cursor-pointer bg-primary text-primary-foreground glow-primary hover:brightness-110 shadow-lg active:brightness-125 w-full text-sm flex items-center justify-center gap-2"
         >
           <Share2 size={16} /> Compartir enlace con amigos
         </button>

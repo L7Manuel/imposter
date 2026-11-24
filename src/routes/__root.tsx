@@ -75,7 +75,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+      },
       { title: "El Impostor — Juego de Fiesta y Engaño Social para Jugar con Amigos" },
       {
         name: "description",
@@ -126,10 +130,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.png", type: "image/png" },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
       {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Bungee&family=Space+Grotesk:wght@400;600;700&display=swap",
+        rel: "preload",
+        href: "/fonts/bungee-latin-400.woff2",
+        as: "font",
+        type: "font/woff2",
+        crossOrigin: "anonymous",
+      },
+      {
+        rel: "preload",
+        href: "/fonts/space-grotesk-latin.woff2",
+        as: "font",
+        type: "font/woff2",
+        crossOrigin: "anonymous",
       },
     ],
   }),
@@ -146,7 +159,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <script
           dangerouslySetInnerHTML={{
             __html:
-              '(function(){try{if(localStorage.getItem("impostor-theme")==="light"){document.documentElement.setAttribute("data-theme","light");}}catch(e){}})();',
+              '(function(){try{if(localStorage.getItem("impostor-theme")==="light"){document.documentElement.setAttribute("data-theme","light");}if(localStorage.getItem("impostor-perf")==="true"){document.documentElement.setAttribute("data-perf","low");}}catch(e){}})();',
           }}
         />
         <HeadContent />

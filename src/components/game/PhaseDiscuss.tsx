@@ -1,12 +1,9 @@
-import React from "react";
+import { useEffect, useState } from "react";
 import { Sun, Zap } from "lucide-react";
+import { playDebateTension, playDramaticImpact } from "@/lib/audio-effects";
 
 export interface PhaseDiscussProps {
   minutes: number;
-  timeLeft: number;
-  paused: boolean;
-  setPaused: (paused: boolean) => void;
-  setTimeLeft: React.Dispatch<React.SetStateAction<number>>;
   isWakeLockActiveState: boolean;
   activeEvent: { icon: string; title: string; description: string } | null;
   starter: number;
@@ -14,6 +11,7 @@ export interface PhaseDiscussProps {
   getPlayerInitial: (idx: number) => string;
   getPlayerName: (idx: number) => string;
   soundEnabled: boolean;
+  vibrationEnabled: boolean;
   playPop: (sound: boolean) => void;
   setPhase: (phase: "setup" | "reveal" | "discuss" | "vote" | "result") => void;
   handleDirectReveal: () => void;
@@ -23,10 +21,6 @@ export interface PhaseDiscussProps {
 
 export function PhaseDiscuss({
   minutes,
-  timeLeft,
-  paused,
-  setPaused,
-  setTimeLeft,
   isWakeLockActiveState,
   activeEvent,
   starter,
@@ -34,12 +28,34 @@ export function PhaseDiscuss({
   getPlayerInitial,
   getPlayerName,
   soundEnabled,
+  vibrationEnabled,
   playPop,
   setPhase,
   handleDirectReveal,
   btnPrimary,
   btnGhost,
 }: PhaseDiscussProps) {
+  // El cronómetro vive aquí para que el tick de cada segundo no re-renderice toda la app.
+  const [timeLeft, setTimeLeft] = useState(() => minutes * 60);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (paused || timeLeft <= 0) return;
+    const t = setTimeout(() => {
+      const n = timeLeft - 1;
+      if (n <= 15 && n > 0) {
+        playDebateTension(n, soundEnabled, vibrationEnabled);
+      } else if (n === 0) {
+        playDramaticImpact(soundEnabled);
+        if (vibrationEnabled && typeof navigator !== "undefined" && navigator.vibrate) {
+          navigator.vibrate([300, 150, 450]);
+        }
+      }
+      setTimeLeft(n);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [paused, timeLeft, soundEnabled, vibrationEnabled]);
+
   const totalSeconds = minutes * 60;
   const progress = Math.max(0, timeLeft / totalSeconds);
   const radius = 80;
@@ -70,7 +86,7 @@ export function PhaseDiscuss({
             cx="90"
             cy="90"
             r={radius}
-            className={`transition-all duration-1000 ease-linear ${
+            className={`transition-[stroke-dashoffset] duration-1000 ease-linear ${
               isUrgent
                 ? "stroke-destructive drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]"
                 : isWarning

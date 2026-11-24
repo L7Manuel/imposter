@@ -151,7 +151,7 @@ export function PhaseSetup({
             playPop(soundEnabled);
             onOpenOnlineRoom();
           }}
-          className="group relative flex items-center gap-2.5 rounded-2xl glass-panel border border-accent/35 hover:border-accent bg-gradient-to-br from-accent/15 via-accent/5 to-transparent p-3 text-left transition-all hover:scale-[1.01] active:scale-95 cursor-pointer shadow-lg"
+          className="group relative flex items-center gap-2.5 rounded-2xl glass-panel border border-accent/35 hover:border-accent bg-gradient-to-br from-accent/15 via-accent/5 to-transparent p-3 text-left transition hover:scale-[1.01] active:scale-95 cursor-pointer shadow-lg"
         >
           <span className="absolute -top-2 right-2.5 rounded-full bg-accent px-1.5 py-0.2 text-[8px] font-extrabold uppercase tracking-wider text-slate-950 shadow">
             NUEVO · QR
@@ -216,7 +216,7 @@ export function PhaseSetup({
             playPop(soundEnabled);
             setSetupStep(1);
           }}
-          className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold transition cursor-pointer ${
             setupStep === 1
               ? "bg-primary text-primary-foreground shadow-md"
               : "text-muted-foreground hover:text-foreground hover:bg-white/5"
@@ -232,7 +232,7 @@ export function PhaseSetup({
             playPop(soundEnabled);
             setSetupStep(2);
           }}
-          className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold transition cursor-pointer ${
             setupStep === 2
               ? "bg-primary text-primary-foreground shadow-md"
               : "text-muted-foreground hover:text-foreground hover:bg-white/5"
@@ -248,7 +248,7 @@ export function PhaseSetup({
             playPop(soundEnabled);
             setSetupStep(3);
           }}
-          className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-2 text-xs font-bold transition cursor-pointer ${
             setupStep === 3
               ? "bg-primary text-primary-foreground shadow-md"
               : "text-muted-foreground hover:text-foreground hover:bg-white/5"
@@ -339,7 +339,7 @@ export function PhaseSetup({
               }}
               className={
                 !hasPro && names.length >= FREE_MAX_PLAYERS
-                  ? "group relative mt-4 flex w-full items-center justify-between overflow-hidden rounded-2xl border border-amber-400/30 bg-gradient-to-r from-amber-500/15 via-amber-400/[0.06] to-transparent px-4 py-3 text-sm font-medium text-foreground transition-all hover:border-amber-400/50 active:scale-[0.98] cursor-pointer"
+                  ? "group relative mt-4 flex w-full items-center justify-between overflow-hidden rounded-2xl border border-amber-400/30 bg-gradient-to-r from-amber-500/15 via-amber-400/[0.06] to-transparent px-4 py-3 text-sm font-medium text-foreground transition hover:border-amber-400/50 active:scale-[0.98] cursor-pointer"
                   : `${btnGhost} mt-4 flex w-full items-center justify-center gap-1.5 py-3 text-sm font-semibold`
               }
             >
@@ -368,7 +368,7 @@ export function PhaseSetup({
                 playPop(soundEnabled);
                 setSetupStep(2);
               }}
-              className="pointer-events-auto flex items-center gap-3.5 rounded-full bg-primary pl-6 pr-4 py-3.5 text-primary-foreground glow-primary ring-2 ring-white/25 shadow-2xl transition-all duration-200 hover:scale-105 hover:brightness-110 active:scale-95 cursor-pointer animate-float"
+              className="pointer-events-auto flex items-center gap-3.5 rounded-full bg-primary pl-6 pr-4 py-3.5 text-primary-foreground glow-primary ring-2 ring-white/25 shadow-2xl transition duration-200 hover:scale-105 hover:brightness-110 active:scale-95 cursor-pointer animate-float"
             >
               <div className="flex flex-col items-start text-left leading-tight">
                 <span className="font-display text-base tracking-wider">CONFIGURAR PARTIDA</span>
@@ -487,7 +487,7 @@ export function PhaseSetup({
                   playPop(soundEnabled);
                   toggleUndercoverMode();
                 }}
-                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition-all active:scale-95 cursor-pointer ${
+                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition active:scale-95 cursor-pointer ${
                   undercoverMode
                     ? "bg-emerald-500/20 border-emerald-400 text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.25)]"
                     : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10 hover:text-foreground"
@@ -524,7 +524,7 @@ export function PhaseSetup({
                   playPop(soundEnabled);
                   toggleAccompliceMode();
                 }}
-                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition-all active:scale-95 cursor-pointer ${
+                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition active:scale-95 cursor-pointer ${
                   accompliceMode
                     ? "bg-primary/15 border-primary/45 text-primary shadow-sm"
                     : "bg-orange-500/15 border-orange-500/45 text-orange-300 shadow-sm"
@@ -559,7 +559,7 @@ export function PhaseSetup({
                   playPop(soundEnabled);
                   toggleRandomEvents();
                 }}
-                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition-all active:scale-95 cursor-pointer ${
+                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition active:scale-95 cursor-pointer ${
                   randomEventsEnabled && hasPro
                     ? "bg-accent/20 border-accent text-accent shadow-[0_0_18px_rgba(56,189,248,0.25)]"
                     : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10 hover:text-foreground"
@@ -602,7 +602,7 @@ export function PhaseSetup({
                   playPop(soundEnabled);
                   toggleJester();
                 }}
-                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition-all active:scale-95 cursor-pointer ${
+                className={`relative flex flex-col items-start justify-between rounded-2xl p-3.5 text-left border transition active:scale-95 cursor-pointer ${
                   jesterEnabled && hasPro
                     ? "bg-purple-500/20 border-purple-400 text-purple-300 shadow-[0_0_18px_rgba(147,51,234,0.25)]"
                     : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10 hover:text-foreground"
@@ -654,7 +654,7 @@ export function PhaseSetup({
                 playPop(soundEnabled);
                 setSetupStep(3);
               }}
-              className="pointer-events-auto flex items-center gap-3.5 rounded-full bg-primary pl-6 pr-4 py-3.5 text-primary-foreground glow-primary ring-2 ring-white/25 shadow-2xl transition-all duration-200 hover:scale-105 hover:brightness-110 active:scale-95 cursor-pointer animate-float"
+              className="pointer-events-auto flex items-center gap-3.5 rounded-full bg-primary pl-6 pr-4 py-3.5 text-primary-foreground glow-primary ring-2 ring-white/25 shadow-2xl transition duration-200 hover:scale-105 hover:brightness-110 active:scale-95 cursor-pointer animate-float"
             >
               <div className="flex flex-col items-start text-left leading-tight">
                 <span className="font-display text-base tracking-wider">ELEGIR CATEGORÍA</span>
@@ -726,7 +726,7 @@ export function PhaseSetup({
                         playPop(soundEnabled);
                         setCategory(c);
                       }}
-                      className={`relative flex flex-col items-center justify-center rounded-2xl p-3.5 text-center transition-all duration-150 cursor-pointer border overflow-hidden ${
+                      className={`relative flex flex-col items-center justify-center rounded-2xl p-3.5 text-center transition duration-150 cursor-pointer border overflow-hidden ${
                         isSelected
                           ? "bg-primary text-primary-foreground font-bold shadow-lg ring-2 ring-primary/50 border-primary scale-[1.02]"
                           : isLockedByPro
@@ -784,7 +784,7 @@ export function PhaseSetup({
                     setCategory(ADULT_CATEGORY);
                   }
                 }}
-                className={`relative flex flex-col items-center justify-center rounded-2xl p-3.5 text-center transition-all duration-150 cursor-pointer border overflow-hidden ${
+                className={`relative flex flex-col items-center justify-center rounded-2xl p-3.5 text-center transition duration-150 cursor-pointer border overflow-hidden ${
                   category === ADULT_CATEGORY
                     ? "bg-rose-600 text-white border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.6)] scale-[1.02] font-bold"
                     : isAdultUnlocked
@@ -843,7 +843,7 @@ export function PhaseSetup({
           <div className="pointer-events-none sticky bottom-5 z-40 mt-2 flex w-full justify-center">
             <button
               onClick={startRound}
-              className="pointer-events-auto flex items-center gap-3.5 rounded-full bg-primary pl-4 pr-6 py-3.5 text-primary-foreground glow-primary ring-2 ring-white/25 shadow-2xl transition-all duration-200 hover:scale-105 hover:brightness-110 active:scale-95 cursor-pointer animate-float"
+              className="pointer-events-auto flex items-center gap-3.5 rounded-full bg-primary pl-4 pr-6 py-3.5 text-primary-foreground glow-primary ring-2 ring-white/25 shadow-2xl transition duration-200 hover:scale-105 hover:brightness-110 active:scale-95 cursor-pointer animate-float"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/20 text-primary-foreground">
                 <Play size={20} className="fill-current ml-0.5" />

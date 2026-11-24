@@ -29,7 +29,7 @@ export function InstallPwaModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 sm:backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="flex max-h-[90vh] w-full max-w-sm flex-col rounded-3xl glass-panel border border-white/15 shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <div className="relative bg-gradient-to-br from-primary/20 via-primary/5 to-transparent px-5 pt-5 pb-4 border-b border-white/10 text-center">

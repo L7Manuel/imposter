@@ -33,7 +33,7 @@ export function AdultPinModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 sm:backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="flex w-full max-w-xs flex-col gap-4 rounded-3xl glass-panel p-6 border border-rose-500/40 shadow-2xl text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
           <KeyRound size={28} />
@@ -66,7 +66,7 @@ export function AdultPinModal({
             return (
               <div
                 key={idx}
-                className={`h-4 w-4 rounded-full border transition-all duration-200 ${
+                className={`h-4 w-4 rounded-full border transition duration-200 ${
                   filled
                     ? "bg-rose-500 border-rose-400 scale-110 shadow-[0_0_10px_rgba(244,63,94,0.6)]"
                     : "border-white/20 bg-white/5"

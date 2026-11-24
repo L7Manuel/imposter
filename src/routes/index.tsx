@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
+import { lazy, Suspense, useEffect, useState, useMemo } from "react";
 import {
   Volume2,
   VolumeX,
@@ -58,22 +58,7 @@ import {
   getUndercoverWord,
 } from "@/data/categories";
 import { ROUND_EVENTS, RoundEvent, getPlayerBadge } from "@/data/game-events";
-import {
-  AdultPinModal,
-  FounderPassesModal,
-  InstallPwaModal,
-  PaywallModal,
-  SettingsModal,
-  ShareModal,
-} from "@/components/modals";
-import {
-  PhaseDiscuss,
-  PhaseResult,
-  PhaseReveal,
-  PhaseSetup,
-  PhaseVote,
-  OnlineRoomModal,
-} from "@/components/game";
+import { PhaseDiscuss, PhaseResult, PhaseReveal, PhaseSetup, PhaseVote } from "@/components/game";
 import {
   unlockAudio,
   playBeep,
@@ -82,9 +67,31 @@ import {
   stopScanSound,
   playImpostorReveal,
   playDramaticImpact,
-  playDebateTension,
   playFanfare,
 } from "@/lib/audio-effects";
+
+// Los modales se cargan bajo demanda: no forman parte del arranque ni de la hidratación.
+const AdultPinModal = lazy(() =>
+  import("@/components/modals/AdultPinModal").then((m) => ({ default: m.AdultPinModal })),
+);
+const FounderPassesModal = lazy(() =>
+  import("@/components/modals/FounderPassesModal").then((m) => ({ default: m.FounderPassesModal })),
+);
+const InstallPwaModal = lazy(() =>
+  import("@/components/modals/InstallPwaModal").then((m) => ({ default: m.InstallPwaModal })),
+);
+const PaywallModal = lazy(() =>
+  import("@/components/modals/PaywallModal").then((m) => ({ default: m.PaywallModal })),
+);
+const SettingsModal = lazy(() =>
+  import("@/components/modals/SettingsModal").then((m) => ({ default: m.SettingsModal })),
+);
+const ShareModal = lazy(() =>
+  import("@/components/modals/ShareModal").then((m) => ({ default: m.ShareModal })),
+);
+const OnlineRoomModal = lazy(() =>
+  import("@/components/game/OnlineRoomModal").then((m) => ({ default: m.OnlineRoomModal })),
+);
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -205,7 +212,7 @@ interface AnalyticsState {
 const FREE_MAX_PLAYERS = 6;
 
 const btn =
-  "rounded-xl px-4 py-3 font-semibold transition-all duration-150 active:scale-95 disabled:opacity-30 select-none cursor-pointer";
+  "rounded-xl px-4 py-3 font-semibold transition duration-150 active:scale-95 disabled:opacity-30 select-none cursor-pointer";
 const btnPrimary = `${btn} bg-primary text-primary-foreground glow-primary hover:brightness-110 shadow-lg active:brightness-125`;
 const btnGhost = `${btn} bg-white/10 hover:bg-white/15 text-foreground border border-white/10 active:brightness-125`;
 const btnDanger = `${btn} bg-destructive text-destructive-foreground glow-danger hover:brightness-110 active:brightness-125`;
@@ -289,6 +296,7 @@ function Game() {
   // Mobile Native (Bloque B) State: Wake Lock, Tema & PWA Install
   const [wakeLockEnabled, setWakeLockEnabled] = useState<boolean>(true);
   const [themeMode, setThemeMode] = useState<"dark" | "light">("dark");
+  const [perfMode, setPerfMode] = useState(false);
   const [isWakeLockActiveState, setIsWakeLockActiveState] = useState<boolean>(false);
   const [isStandalone, setIsStandalone] = useState<boolean>(false);
   const [canInstallPwa, setCanInstallPwa] = useState<boolean>(false);
@@ -331,8 +339,6 @@ function Game() {
   const [jesterIndex, setJesterIndex] = useState<number | null>(null);
   const [turn, setTurn] = useState(0);
   const [starter, setStarter] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [paused, setPaused] = useState(false);
   const [usedWords, setUsedWords] = useState<Record<string, string[]>>({});
   const [activeEvent, setActiveEvent] = useState<RoundEvent | null>(null);
 
@@ -375,6 +381,8 @@ function Game() {
 
       const savedWakeLock = localStorage.getItem("impostor-wake-lock");
       if (savedWakeLock !== null) setWakeLockEnabled(savedWakeLock === "true");
+
+      if (localStorage.getItem("impostor-perf") === "true") setPerfMode(true);
 
       const savedTheme = localStorage.getItem("impostor-theme");
       if (savedTheme === "light" || savedTheme === "dark") {
@@ -1222,25 +1230,25 @@ function Game() {
   };
 
   // Función helper para limpiar el estado del juego de localStorage
-// Esto asegura una limpieza consistente en todo el código
-const cleanupGameLocalStorage = () => {
-  localStorage.removeItem("impostor-names");
-  localStorage.removeItem("impostor-count");
-  localStorage.removeItem("impostor-minutes");
-  localStorage.removeItem("impostor-sound");
-  localStorage.removeItem("impostor-vibration");
-  localStorage.removeItem("impostor-wake-lock");
-  localStorage.removeItem("impostor-accomplice");
-  localStorage.removeItem("impostor-events");
-  localStorage.removeItem("impostor-jester");
-  localStorage.removeItem("impostor-adult-unlocked");
-  localStorage.removeItem("impostor-scores");
-  localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
-  localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
-  localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
-  localStorage.removeItem(STORAGE_KEYS.FOUNDER_NUMBER);
-  localStorage.removeItem(STORAGE_KEYS.FOUNDER_CODE);
-};
+  // Esto asegura una limpieza consistente en todo el código
+  const cleanupGameLocalStorage = () => {
+    localStorage.removeItem("impostor-names");
+    localStorage.removeItem("impostor-count");
+    localStorage.removeItem("impostor-minutes");
+    localStorage.removeItem("impostor-sound");
+    localStorage.removeItem("impostor-vibration");
+    localStorage.removeItem("impostor-wake-lock");
+    localStorage.removeItem("impostor-accomplice");
+    localStorage.removeItem("impostor-events");
+    localStorage.removeItem("impostor-jester");
+    localStorage.removeItem("impostor-adult-unlocked");
+    localStorage.removeItem("impostor-scores");
+    localStorage.removeItem(STORAGE_KEYS.CEO_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
+    localStorage.removeItem(STORAGE_KEYS.FOUNDER_NUMBER);
+    localStorage.removeItem(STORAGE_KEYS.FOUNDER_CODE);
+  };
 
   const resetFactoryDefaults = () => {
     const defaultPlayers = ["Jugador 1", "Jugador 2", "Jugador 3", "Jugador 4"];
@@ -1285,6 +1293,17 @@ const cleanupGameLocalStorage = () => {
     localStorage.setItem("impostor-theme", next);
     if (typeof document !== "undefined") {
       document.documentElement.setAttribute("data-theme", next);
+    }
+  };
+
+  const togglePerfMode = () => {
+    playPop(soundEnabled);
+    const next = !perfMode;
+    setPerfMode(next);
+    localStorage.setItem("impostor-perf", String(next));
+    if (typeof document !== "undefined") {
+      if (next) document.documentElement.setAttribute("data-perf", "low");
+      else document.documentElement.removeAttribute("data-perf");
     }
   };
 
@@ -1339,24 +1358,6 @@ const cleanupGameLocalStorage = () => {
     const n = names[idx];
     return n ? n.trim().charAt(0).toUpperCase() || String(idx + 1) : String(idx + 1);
   };
-
-  // Timer effect (Tensión sutil de escape room en los últimos 15 segundos)
-  useEffect(() => {
-    if (phase !== "discuss" || paused || timeLeft <= 0) return;
-    const t = setTimeout(() => {
-      const n = timeLeft - 1;
-      if (n <= 15 && n > 0) {
-        playDebateTension(n, soundEnabled, vibrationEnabled);
-      } else if (n === 0) {
-        playDramaticImpact(soundEnabled);
-        if (vibrationEnabled && typeof navigator !== "undefined" && navigator.vibrate) {
-          navigator.vibrate([300, 150, 450]);
-        }
-      }
-      setTimeLeft(n);
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [phase, paused, timeLeft, soundEnabled, vibrationEnabled]);
 
   const startRound = () => {
     unlockAudio();
@@ -1481,8 +1482,6 @@ const cleanupGameLocalStorage = () => {
     setHasSeenRole(false);
 
     if (turn + 1 >= names.length) {
-      setTimeLeft(minutes * 60);
-      setPaused(false);
       setPhase("discuss");
     } else {
       setTurn(turn + 1);
@@ -1662,8 +1661,8 @@ const cleanupGameLocalStorage = () => {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md sm:max-w-lg flex-col px-4 py-6 select-none">
       {/* Header Minimalista con Cápsula de Cristal Unificada */}
-      <header className="mb-6 flex items-center justify-between border-b border-white/[0.08] pb-4">
-        <div>
+      <header className="mb-6 flex flex-col gap-2.5 border-b border-white/[0.08] pb-4">
+        <div className="min-w-0">
           <h1 className="font-display text-3xl tracking-wider text-primary drop-shadow-[0_0_15px_rgba(234,179,8,0.35)]">
             IMPOSTER
           </h1>
@@ -1673,7 +1672,7 @@ const cleanupGameLocalStorage = () => {
         </div>
 
         {/* Dock / Cápsula de Cristal Esmerilado Unificada */}
-        <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] p-1 backdrop-blur-xl shadow-lg">
+        <div className="flex w-full max-w-full flex-wrap items-center justify-between gap-x-1 rounded-full border border-white/10 bg-white/[0.06] p-1 shadow-lg">
           {/* Abort / Back to Setup Button during active game */}
           {phase !== "setup" && (
             <>
@@ -1864,199 +1863,215 @@ const cleanupGameLocalStorage = () => {
 
       {/* MODAL: SALAS ONLINE EN TIEMPO REAL (QR / 4 LETRAS) */}
       {showOnlineRoomModal && (
-        <OnlineRoomModal
-          isOpen={showOnlineRoomModal}
-          onClose={() => setShowOnlineRoomModal(false)}
-          hasPro={hasPro}
-          openPaywall={() => {
-            setShowOnlineRoomModal(false);
-            openPaywall();
-          }}
-          soundEnabled={soundEnabled}
-          playPop={playPop}
-          playFanfare={playFanfare}
-          defaultPlayerName={names[0] || "Jugador 1"}
-          category={category}
-          impostorCount={impostorCount}
-          minutes={minutes}
-          undercoverMode={undercoverMode}
-          jesterEnabled={jesterEnabled}
-          accompliceMode={accompliceMode}
-          initialJoinCode={initialOnlineRoomCode}
-        />
+        <Suspense fallback={null}>
+          <OnlineRoomModal
+            isOpen={showOnlineRoomModal}
+            onClose={() => setShowOnlineRoomModal(false)}
+            hasPro={hasPro}
+            openPaywall={() => {
+              setShowOnlineRoomModal(false);
+              openPaywall();
+            }}
+            soundEnabled={soundEnabled}
+            playPop={playPop}
+            playFanfare={playFanfare}
+            defaultPlayerName={names[0] || "Jugador 1"}
+            category={category}
+            impostorCount={impostorCount}
+            minutes={minutes}
+            undercoverMode={undercoverMode}
+            jesterEnabled={jesterEnabled}
+            accompliceMode={accompliceMode}
+            initialJoinCode={initialOnlineRoomCode}
+          />
+        </Suspense>
       )}
 
       {/* MODAL: CENTRO DE CONFIGURACIÓN Y PERSONALIZACIÓN (EXTRAÍDO A COMPONENTE) */}
       {showSettingsModal && (
-        <SettingsModal
-          isOpen={showSettingsModal}
-          onClose={() => {
-            playPop(soundEnabled);
-            setShowSettingsModal(false);
-          }}
-          hasPro={hasPro}
-          custom={custom}
-          saveCustom={saveCustom}
-          category={category}
-          setCategory={setCategory}
-          newCat={newCat}
-          setNewCat={setNewCat}
-          newWords={newWords}
-          setNewWords={setNewWords}
-          openPaywall={openPaywall}
-          isAdultUnlocked={isAdultUnlocked}
-          setIsAdultUnlocked={setIsAdultUnlocked}
-          openPinModal={(mode) => {
-            playPop(soundEnabled);
-            setPinModalMode(mode);
-            setEnteredPin("");
-            setPinError(false);
-            setShowPinHint(false);
-            setShowSettingsModal(false);
-            setShowPinModal(true);
-          }}
-          soundEnabled={soundEnabled}
-          toggleSound={toggleSound}
-          vibrationEnabled={vibrationEnabled}
-          toggleVibration={toggleVibration}
-          wakeLockEnabled={wakeLockEnabled}
-          toggleWakeLock={toggleWakeLock}
-          themeMode={themeMode}
-          toggleThemeMode={toggleThemeMode}
-          handleInstallPwa={handleInstallPwa}
-          isStandalone={isStandalone}
-          scores={scores}
-          resetScores={resetScores}
-          resetFactoryDefaults={resetFactoryDefaults}
-          isCeoAdmin={isCeoAdmin}
-          isProUnlocked={isProUnlocked}
-          proExpiresAt={proExpiresAt}
-          deactivateProAndCeo={deactivateProAndCeo}
-          btnPrimary={btnPrimary}
-          btnGhost={btnGhost}
-          playPop={playPop}
-        />
+        <Suspense fallback={null}>
+          <SettingsModal
+            isOpen={showSettingsModal}
+            onClose={() => {
+              playPop(soundEnabled);
+              setShowSettingsModal(false);
+            }}
+            hasPro={hasPro}
+            custom={custom}
+            saveCustom={saveCustom}
+            category={category}
+            setCategory={setCategory}
+            newCat={newCat}
+            setNewCat={setNewCat}
+            newWords={newWords}
+            setNewWords={setNewWords}
+            openPaywall={openPaywall}
+            isAdultUnlocked={isAdultUnlocked}
+            setIsAdultUnlocked={setIsAdultUnlocked}
+            openPinModal={(mode) => {
+              playPop(soundEnabled);
+              setPinModalMode(mode);
+              setEnteredPin("");
+              setPinError(false);
+              setShowPinHint(false);
+              setShowSettingsModal(false);
+              setShowPinModal(true);
+            }}
+            soundEnabled={soundEnabled}
+            toggleSound={toggleSound}
+            vibrationEnabled={vibrationEnabled}
+            toggleVibration={toggleVibration}
+            wakeLockEnabled={wakeLockEnabled}
+            toggleWakeLock={toggleWakeLock}
+            themeMode={themeMode}
+            toggleThemeMode={toggleThemeMode}
+            perfMode={perfMode}
+            togglePerfMode={togglePerfMode}
+            handleInstallPwa={handleInstallPwa}
+            isStandalone={isStandalone}
+            scores={scores}
+            resetScores={resetScores}
+            resetFactoryDefaults={resetFactoryDefaults}
+            isCeoAdmin={isCeoAdmin}
+            isProUnlocked={isProUnlocked}
+            proExpiresAt={proExpiresAt}
+            deactivateProAndCeo={deactivateProAndCeo}
+            btnPrimary={btnPrimary}
+            btnGhost={btnGhost}
+            playPop={playPop}
+          />
+        </Suspense>
       )}
 
       {/* MODAL: TUS 5 PASES DE INVITACIÓN (EXTRAÍDO A COMPONENTE) */}
       {showFounderPassesModal && founderNumber !== null && (
-        <FounderPassesModal
-          isOpen={showFounderPassesModal}
-          onClose={() => setShowFounderPassesModal(false)}
-          founderNumber={founderNumber}
-          founderGuestPasses={founderGuestPasses}
-        />
+        <Suspense fallback={null}>
+          <FounderPassesModal
+            isOpen={showFounderPassesModal}
+            onClose={() => setShowFounderPassesModal(false)}
+            founderNumber={founderNumber}
+            founderGuestPasses={founderGuestPasses}
+          />
+        </Suspense>
       )}
 
       {/* MODAL: PARTY PASS PRO & ACCESO CEO (EXTRAÍDO A COMPONENTE) */}
       {showProModal && (
-        <PaywallModal
-          isOpen={showProModal}
-          onClose={() => {
-            playPop(soundEnabled);
-            setShowProModal(false);
-            setProModalView("perks");
-          }}
-          soundEnabled={soundEnabled}
-          playPop={playPop}
-          activePaymentTracker={activePaymentTracker}
-          setActivePaymentTracker={setActivePaymentTracker}
-          proModalView={proModalView}
-          setProModalView={setProModalView}
-          selectedPlan={selectedPlan}
-          setSelectedPlan={setSelectedPlan}
-          paymentConfig={paymentConfig}
-          selectedPayMethod={selectedPayMethod}
-          setSelectedPayMethod={setSelectedPayMethod}
-          copiedPayField={copiedPayField}
-          handleCopyPayField={handleCopyPayField}
-          payProofName={payProofName}
-          setPayProofName={setPayProofName}
-          payProofRef={payProofRef}
-          setPayProofRef={setPayProofRef}
-          payProofDiscordContact={payProofDiscordContact}
-          setPayProofDiscordContact={setPayProofDiscordContact}
-          payProofFeedback={payProofFeedback}
-          setPayProofFeedback={setPayProofFeedback}
-          payProofSubmitting={payProofSubmitting}
-          handleSubmitPaymentProof={handleSubmitPaymentProof}
-          proCodeInput={proCodeInput}
-          setProCodeInput={setProCodeInput}
-          handleRedeemCode={handleRedeemCode}
-          proCodeFeedback={proCodeFeedback}
-          freeTrialUsed={freeTrialUsed}
-          onActivateFreeTrial={activateFreeTrialRound}
-        />
+        <Suspense fallback={null}>
+          <PaywallModal
+            isOpen={showProModal}
+            onClose={() => {
+              playPop(soundEnabled);
+              setShowProModal(false);
+              setProModalView("perks");
+            }}
+            soundEnabled={soundEnabled}
+            playPop={playPop}
+            activePaymentTracker={activePaymentTracker}
+            setActivePaymentTracker={setActivePaymentTracker}
+            proModalView={proModalView}
+            setProModalView={setProModalView}
+            selectedPlan={selectedPlan}
+            setSelectedPlan={setSelectedPlan}
+            paymentConfig={paymentConfig}
+            selectedPayMethod={selectedPayMethod}
+            setSelectedPayMethod={setSelectedPayMethod}
+            copiedPayField={copiedPayField}
+            handleCopyPayField={handleCopyPayField}
+            payProofName={payProofName}
+            setPayProofName={setPayProofName}
+            payProofRef={payProofRef}
+            setPayProofRef={setPayProofRef}
+            payProofDiscordContact={payProofDiscordContact}
+            setPayProofDiscordContact={setPayProofDiscordContact}
+            payProofFeedback={payProofFeedback}
+            setPayProofFeedback={setPayProofFeedback}
+            payProofSubmitting={payProofSubmitting}
+            handleSubmitPaymentProof={handleSubmitPaymentProof}
+            proCodeInput={proCodeInput}
+            setProCodeInput={setProCodeInput}
+            handleRedeemCode={handleRedeemCode}
+            proCodeFeedback={proCodeFeedback}
+            freeTrialUsed={freeTrialUsed}
+            onActivateFreeTrial={activateFreeTrialRound}
+          />
+        </Suspense>
       )}
 
       {/* MODAL: COMPARTIR JUEGO Y CÓDIGO QR (EXTRAÍDO A COMPONENTE) */}
       {showShareModal && (
-        <ShareModal
-          isOpen={showShareModal}
-          onClose={() => {
-            playPop(soundEnabled);
-            setShowShareModal(false);
-          }}
-          shareUrl={shareUrl}
-          shareCopied={shareCopied}
-          onCopy={async () => {
-            playPop(soundEnabled);
-            try {
-              await navigator.clipboard.writeText(shareUrl);
-              setShareCopied(true);
-              setTimeout(() => setShareCopied(false), 2500);
-            } catch {
-              /* ignore */
-            }
-          }}
-          onShare={handleShareGame}
-          onOpenInstallPwa={() => {
-            setShowShareModal(false);
-            handleInstallPwa();
-          }}
-        />
+        <Suspense fallback={null}>
+          <ShareModal
+            isOpen={showShareModal}
+            onClose={() => {
+              playPop(soundEnabled);
+              setShowShareModal(false);
+            }}
+            shareUrl={shareUrl}
+            shareCopied={shareCopied}
+            onCopy={async () => {
+              playPop(soundEnabled);
+              try {
+                await navigator.clipboard.writeText(shareUrl);
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2500);
+              } catch {
+                /* ignore */
+              }
+            }}
+            onShare={handleShareGame}
+            onOpenInstallPwa={() => {
+              setShowShareModal(false);
+              handleInstallPwa();
+            }}
+          />
+        </Suspense>
       )}
 
       {/* MODAL: INSTALACIÓN PWA (EXTRAÍDO A COMPONENTE) */}
       {showInstallModal && (
-        <InstallPwaModal
-          isOpen={showInstallModal}
-          onClose={() => {
-            playPop(soundEnabled);
-            setShowInstallModal(false);
-          }}
-          isStandalone={isStandalone}
-          isIos={isIos}
-          canInstallPwa={canInstallPwa}
-          promptPwaInstall={promptPwaInstall}
-          btnPrimary={btnPrimary}
-          btnGhost={btnGhost}
-          soundEnabled={soundEnabled}
-          playPop={playPop}
-        />
+        <Suspense fallback={null}>
+          <InstallPwaModal
+            isOpen={showInstallModal}
+            onClose={() => {
+              playPop(soundEnabled);
+              setShowInstallModal(false);
+            }}
+            isStandalone={isStandalone}
+            isIos={isIos}
+            canInstallPwa={canInstallPwa}
+            promptPwaInstall={promptPwaInstall}
+            btnPrimary={btnPrimary}
+            btnGhost={btnGhost}
+            soundEnabled={soundEnabled}
+            playPop={playPop}
+          />
+        </Suspense>
       )}
 
       {/* MODAL: TECLADO PIN PARA SECCIÓN +18 (EXTRAÍDO A COMPONENTE) */}
       {showPinModal && (
-        <AdultPinModal
-          isOpen={showPinModal}
-          onClose={() => {
-            playPop(soundEnabled);
-            setShowPinModal(false);
-            setEnteredPin("");
-            setShowPinHint(false);
-          }}
-          pinModalMode={pinModalMode}
-          enteredPin={enteredPin}
-          pinError={pinError}
-          pinLockoutUntil={pinLockoutUntil}
-          pinFailedAttempts={pinFailedAttempts}
-          handlePinInput={handlePinInput}
-          handlePinDelete={handlePinDelete}
-          showPinHint={showPinHint}
-          setShowPinHint={setShowPinHint}
-          adultPin={adultPin}
-        />
+        <Suspense fallback={null}>
+          <AdultPinModal
+            isOpen={showPinModal}
+            onClose={() => {
+              playPop(soundEnabled);
+              setShowPinModal(false);
+              setEnteredPin("");
+              setShowPinHint(false);
+            }}
+            pinModalMode={pinModalMode}
+            enteredPin={enteredPin}
+            pinError={pinError}
+            pinLockoutUntil={pinLockoutUntil}
+            pinFailedAttempts={pinFailedAttempts}
+            handlePinInput={handlePinInput}
+            handlePinDelete={handlePinDelete}
+            showPinHint={showPinHint}
+            setShowPinHint={setShowPinHint}
+            adultPin={adultPin}
+          />
+        </Suspense>
       )}
 
       {/* PHASE 2: REVEAL (EXTRAÍDO A COMPONENTE) */}
@@ -2087,10 +2102,6 @@ const cleanupGameLocalStorage = () => {
       {phase === "discuss" && (
         <PhaseDiscuss
           minutes={minutes}
-          timeLeft={timeLeft}
-          paused={paused}
-          setPaused={setPaused}
-          setTimeLeft={setTimeLeft}
           isWakeLockActiveState={isWakeLockActiveState}
           activeEvent={activeEvent}
           starter={starter}
@@ -2098,6 +2109,7 @@ const cleanupGameLocalStorage = () => {
           getPlayerInitial={getPlayerInitial}
           getPlayerName={getPlayerName}
           soundEnabled={soundEnabled}
+          vibrationEnabled={vibrationEnabled}
           playPop={playPop}
           setPhase={setPhase}
           handleDirectReveal={handleDirectReveal}
@@ -2159,7 +2171,7 @@ const cleanupGameLocalStorage = () => {
 
       {/* Cinematic Suspense Blackout Overlay */}
       {isResolvingResult && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 sm:backdrop-blur-xl animate-in fade-in duration-200">
           <div className="flex flex-col items-center gap-4 animate-pulse">
             <div className="h-14 w-14 rounded-full border-4 border-primary border-t-transparent animate-spin" />
             <span className="font-display text-2xl tracking-widest text-primary drop-shadow-[0_0_20px_rgba(234,179,8,0.6)]">

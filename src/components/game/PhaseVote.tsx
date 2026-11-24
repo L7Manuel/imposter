@@ -81,7 +81,7 @@ export function PhaseVote({
                   playPop(soundEnabled);
                   setAccusedIndex(i);
                 }}
-                className={`relative flex flex-col items-center justify-center rounded-2xl p-4 transition-all duration-200 border ${
+                className={`relative flex flex-col items-center justify-center rounded-2xl p-4 transition duration-200 border ${
                   isCaught
                     ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 opacity-70 cursor-not-allowed"
                     : isSelected
@@ -134,7 +134,7 @@ export function PhaseVote({
 
       {/* MODAL: IMPRESIÓN / ADIVINANZA DEL IMPOSTOR */}
       {showImpostorGuessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 sm:backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="flex w-full max-w-sm flex-col gap-4 rounded-3xl glass-panel p-6 border border-destructive/40 shadow-2xl text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/20 text-destructive border border-destructive/30 animate-pulse">
               <ShieldAlert size={32} />

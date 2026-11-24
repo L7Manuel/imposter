@@ -18,7 +18,7 @@ export function FounderPassesModal({
   if (!isOpen || founderNumber === null) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 sm:backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="flex max-h-[92vh] w-full max-w-sm flex-col rounded-3xl glass-panel border border-amber-500/40 p-5 shadow-2xl">
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2">

@@ -11,6 +11,7 @@ import {
   Smartphone,
   Sun,
   RotateCcw,
+  Zap,
 } from "lucide-react";
 import { ADULT_CATEGORY } from "@/data/categories";
 
@@ -38,6 +39,8 @@ export interface SettingsModalProps {
   toggleWakeLock: () => void;
   themeMode: "dark" | "light";
   toggleThemeMode: () => void;
+  perfMode: boolean;
+  togglePerfMode: () => void;
   handleInstallPwa: () => void;
   isStandalone: boolean;
   scores: { innocents: number; impostors: number };
@@ -76,6 +79,8 @@ export function SettingsModal({
   toggleWakeLock,
   themeMode,
   toggleThemeMode,
+  perfMode,
+  togglePerfMode,
   handleInstallPwa,
   isStandalone,
   scores,
@@ -92,7 +97,7 @@ export function SettingsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 sm:backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-3xl glass-panel border border-white/15 shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
@@ -380,6 +385,32 @@ export function SettingsModal({
                 <span
                   className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
                     wakeLockEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Modo Rendimiento (desactiva blur de GPU) */}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                  <Zap size={14} className="text-amber-400" />
+                  Modo Rendimiento
+                </span>
+                <p className="text-[10px] text-muted-foreground">
+                  Desactiva los desenfoques si el juego va lento
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={togglePerfMode}
+                className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors cursor-pointer overflow-hidden ${
+                  perfMode ? "bg-primary" : "bg-white/20"
+                }`}
+              >
+                <span
+                  className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    perfMode ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
               </button>
