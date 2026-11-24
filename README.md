@@ -133,3 +133,11 @@ npm run deploy
 - **Edge Runtime & Base de Datos**: Cloudflare Workers + Cloudflare KV (`IMPOSTER_KV`)
 - **Bot & Copiloto IA**: Discord.js v14 + Google Gemini Flash Lite + OpenRouter + Groq Cloud en Render (`https://atlas-bot-2xh4.onrender.com`)
 - **Testing**: Vitest + Testing Library
+
+## Versión Android (TWA / Bubblewrap)
+
+- **Package Name:** `dev.manu07games.imposter`
+- **Dominio vinculado:** `https://imposter.manu-07games.workers.dev`
+- **Verificación de pantalla completa:** El archivo `public/.well-known/assetlinks.json` vincula la firma digital de la APK con el dominio web. **No eliminar** este archivo ni moverlo fuera de `public/.well-known/`.
+- **Despliegue web:** Los cambios en el juego web se publican ejecutando `npm run deploy` (despliega en Cloudflare Workers). Al actualizar la web, la APK instalada en Android recibe los cambios automáticamente sin necesidad de recompilar.
+- **Proyecto Android:** Los archivos fuente de Android (`twa-manifest.json`, `.apk`, `.aab`) y la llave privada (`android.keystore`) se encuentran fuera de este repositorio (respaldados en Google Drive / carpeta local `Imposter-Android`).
