@@ -1,10 +1,10 @@
-# 🎮 Imposter v2.0.1 — Party Game Cyber-Arcade (Presencial & Online)
+# 🎮 Imposter v2.0.2 — Party Game Cyber-Arcade (Presencial & Online)
 
 Un juego de fiesta estilo _Spyfall_ y _Among Us_ de deducción social, misterio y engaño. Juega en la misma sala pasando el teléfono (_Pass & Play_) o a distancia creando una **Sala Online Multijugador** en tiempo real. Escanea tu rol con el sensor biométrico y descubre a los traidores ocultos antes de que sea demasiado tarde.
 
 ---
 
-## ✨ Características Principales (`v2.0.1`)
+## ✨ Características Principales (`v2.0.2`)
 
 - **🧭 Configuración Fluida en 3 Pasos (_3-Step Cyber-Arcade Wizard_)**:
   - **Paso 1 — Jugadores**: Gestiona de 3 a 15 jugadores con avatares numerados, botón **Mezclar** para orden aleatorio y selector visual de quién inicia la ronda.
@@ -32,8 +32,12 @@ Un juego de fiesta estilo _Spyfall_ y _Among Us_ de deducción social, misterio 
   - **Desbloqueo Provisional Instantáneo** al reportar una transferencia para no interrumpir la fiesta, y **Auto-Entrega del Pase Fundador Vitalicio (`#001` a `#100` + 5 Pases de Invitado de 24h)** al aprobarse el cobro.
 - **💾 Persistencia Permanente en Cloudflare KV (`IMPOSTER_KV`)**:
   - Bóveda distribuida en el Edge que conserva permanentemente fundadores, pases de invitado, reportes de cobro, configuración bancaria, cupones de prueba y telemetría global.
-- **⚡ Rendimiento Móvil 60/120 FPS (GPU Hardware Accelerated)**:
-  - Modales desmontados dinámicamente fuera de uso, capas compuestas aceleradas por GPU (`translateZ(0)`) y navegación SPA con **0 ms de parpadeo** entre el juego y la consola administrativa.
+- **⚡ Rendimiento Móvil 60/120 FPS, Arranque Ligero y PWA Offline**:
+  - Cabecera en **dos filas** (título + dock) que elimina el recorte horizontal en móviles de 360 px, con viewport sin zoom accidental y `overflow-x: hidden`.
+  - **Modales bajo demanda** (`React.lazy` + `Suspense`): el chunk de rutas se redujo de ~192 KB a ~103 KB y las ventanas solo se descargan al abrirse.
+  - **Cronómetro de debate aislado** en `PhaseDiscuss` (sin re-renderizar toda la app cada segundo) y animaciones aceleradas por GPU (`transform`, `will-change`).
+  - **Fuentes autoalojadas** (Bungee + Space Grotesk en `public/fonts`, con `preload`) y **Service Worker Workbox con precache de ~30 assets**, incluido `offline.html`.
+  - **Modo Rendimiento** opcional en Ajustes: desactiva todos los `backdrop-filter` si el dispositivo va lento. El confetti se limita a 100 partículas (40 en modo rendimiento) y respeta `prefers-reduced-motion`.
 
 ---
 
@@ -115,21 +119,24 @@ npm test
 
 ### **Despliegue a Producción (Cloudflare Workers + KV)**
 
-Compila la aplicación, inyecta automáticamente el enlace a `IMPOSTER_KV` en `.output/server/wrangler.json` y despliega en `https://imposter.manu-07games.workers.dev`:
+Compila la aplicación, deja intacto el `sw.js` generado por Workbox (precache de ~30 assets, incluidas las fuentes), inyecta automáticamente el enlace a `IMPOSTER_KV` en `.output/server/wrangler.json` y despliega el Worker `imposter` en `https://imposter.manu-07games.workers.dev`:
 
 ```bash
 npm run deploy
 ```
+
+Tras el despliegue, el Worker debe exponer los bindings `ASSETS` e `IMPOSTER_KV`. El Service Worker se registra con `updateViaCache: "none"` y se actualiza solo al volver a primer plano, sin recargar a mitad de partida.
 
 ---
 
 ## 🏗️ Stack Tecnológico
 
 - **Frontend & SSR**: React 19 + TypeScript + TanStack Start (Router + SSR)
-- **Estilos & Motion**: Tailwind CSS v4 + Animaciones aceleradas por GPU (`translateZ(0)`)
+- **Estilos & Motion**: Tailwind CSS v4 + Animaciones aceleradas por GPU (`transform`, `will-change`) + Modo Rendimiento
+- **Tipografía**: Fuentes Bungee y Space Grotesk autoalojadas en `public/fonts` (0 peticiones a Google Fonts)
 - **Iconografía**: Lucide React (100% libre de emojis en la interfaz)
 - **Audio Engine**: Web Audio API sintetizada (_zero-asset / zero-latency_)
-- **Bundler & PWA**: Vite + Service Worker nativo + Screen Wake Lock
+- **Bundler & PWA**: Vite + `vite-plugin-pwa` (Workbox `generateSW` con precache) + Screen Wake Lock
 - **Edge Runtime & Base de Datos**: Cloudflare Workers + Cloudflare KV (`IMPOSTER_KV`)
 - **Bot & Copiloto IA**: Discord.js v14 + Google Gemini Flash Lite + OpenRouter + Groq Cloud en Render (`https://atlas-bot-2xh4.onrender.com`)
 - **Testing**: Vitest + Testing Library
