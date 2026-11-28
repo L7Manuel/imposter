@@ -27,6 +27,7 @@ import {
   sanitizeImportedCategories,
   createSignedExpiry,
   parseSignedExpiry,
+  parsePurchaseToken,
   TESTER_COUPON_DURATION_MS,
   VIP_COUPON_HASHES_ORDERED,
   STORAGE_KEYS,
@@ -448,7 +449,10 @@ function Game() {
       if (isValidStoredToken(storedProToken, "pro", storedProExpires)) {
         isUnlockedOnMount = true;
         setIsProUnlocked(true);
-        const parsedExp = parseSignedExpiry(storedProToken, storedProExpires);
+        const parsedExp =
+          parseSignedExpiry(storedProToken, storedProExpires) ??
+          parsePurchaseToken(storedProToken)?.expiresAt ??
+          null;
         if (parsedExp) setProExpiresAt(parsedExp);
       } else if (storedProToken || storedProExpires) {
         localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
@@ -608,6 +612,25 @@ function Game() {
       /* ignore */
     }
   }, []);
+
+  // Revocación en caliente: si el pase vence con la app abierta, se bloquea sin recargar.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!isProUnlocked || isCeoAdmin || ceoSimulateFree || proExpiresAt === null) return;
+
+    const checkExpiry = () => {
+      const storedProToken = localStorage.getItem(STORAGE_KEYS.PRO_TOKEN);
+      const storedProExpires = localStorage.getItem(STORAGE_KEYS.PRO_EXPIRES);
+      if (isValidStoredToken(storedProToken, "pro", storedProExpires)) return;
+      setIsProUnlocked(false);
+      setProExpiresAt(null);
+      localStorage.removeItem(STORAGE_KEYS.PRO_TOKEN);
+      localStorage.removeItem(STORAGE_KEYS.PRO_EXPIRES);
+    };
+
+    const interval = setInterval(checkExpiry, 30000);
+    return () => clearInterval(interval);
+  }, [isProUnlocked, isCeoAdmin, ceoSimulateFree, proExpiresAt]);
 
   // Activación de respuesta táctil instantánea (:active en iOS) y pre-calentamiento de AudioContext
   useEffect(() => {

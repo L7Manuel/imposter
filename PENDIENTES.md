@@ -37,16 +37,19 @@ Hoy estos endpoints son públicos y permiten abuso:
 
 ---
 
-## ⏳ Bloque 3 — Expiración real de los pagos (PENDIENTE)
+## ✅ Bloque 3 — Expiración real de los pagos (HECHO 2026-11-28)
 
-- [ ] `src/lib/coupon-server.ts:875` — calcular `expiresAt` desde la aprobación:
-  `expiresAt = (payment.approvedAt ?? Date.now()) + durationHours * 3600 * 1000`.
-- [ ] `src/lib/coupon-server.ts:837` — no regenerar token/fecha en cada consulta (devolver el mismo resultado para el mismo pago).
-- [ ] `src/lib/security.ts:547` — rechazar tokens de compra **sin** `rawExpiry` (fail closed).
+- [x] `src/lib/security.ts` — el token de compra lleva su vencimiento embebido (`T` + segundos Unix) o la marca de vitalicio (`P`); ya no depende de `localStorage`.
+- [x] `src/lib/security.ts` — un token de compra vencido se rechaza aunque `PRO_EXPIRES` diga otra cosa.
+- [x] `src/lib/coupon-server.ts` — `ensurePaymentEntitlement()` emite token y vencimiento **una sola vez**, anclados a `approvedAt`; consultar el estado ya no renueva el pase.
+- [x] `src/lib/coupon-server.ts` — el token se emite al aprobar el pago (y también para pagos antiguos, la primera vez que se consultan).
+- [x] `src/routes/index.tsx` — `proExpiresAt` se deriva del propio token y hay revocación en caliente cada 30 s si el pase vence con la app abierta.
+- [x] Tokens antiguos: se aceptan si tienen `PRO_EXPIRES` firmado y vigente; sin él solo valen en dispositivos con `impostor-founder-number` (fundadores vitalicios).
+- [x] Tests nuevos en `src/test/security-expiry.test.ts` (6 casos). `tsc` limpio, 15/15 tests.
 
-**Criterio de aceptación:** un pase de 24h dura 24h; borrar `impostor-pro-expires` de `localStorage` no otorga PRO permanente; consultar el estado repetidamente no extiende el pase.
+**Deploy:** versión `f46ebc04-9e94-44c0-ad56-25e346ed3983`.
 
-**Riesgo si se olvida:** un pase de $0.99 se puede renovar indefinidamente y un pase de 24h se vuelve vitalicio borrando una clave.
+**Efecto observable:** un pase de 24 h dura 24 h; borrar `impostor-pro-expires` ya no regala PRO permanente.
 
 ---
 
@@ -58,7 +61,7 @@ Hoy estos endpoints son públicos y permiten abuso:
 - [ ] P1-8: empates de votación, desconectados que bloquean la ronda, `leave`/`kick`.
 - [ ] P2-14: un `JSON.parse` corrupto aborta toda la hidratación de `index.tsx`.
 - [ ] P2-15: validar `impostorCount` (NaN/negativo) y corregir el warning de hooks.
-- [ ] P2-16: comprobar `proExpiresAt` en caliente.
+- [ ] P2-16: comprobar `proExpiresAt` en caliente. (resuelto con el Bloque 3)
 - [ ] P2-17: temporizador basado en `Date.now()` (deriva y segundo plano).
 - [ ] P2-18: Fisher-Yates en lugar de `sort(() => Math.random() - 0.5)`.
 - [ ] P2-19: quitar `playPop` de cada tecla en `PhaseSetup`.

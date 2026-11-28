@@ -834,6 +834,31 @@ export const submitPaymentProofServerFn = createServerFn({ method: "POST" })
     return { success: true, paymentId: id };
   });
 
+const PLAN_DURATION_HOURS: Record<string, number | null> = {
+  day: 24,
+  weekend: 72,
+  month: 24 * 30,
+  founder: null,
+  lifetime: null,
+};
+
+/**
+ * Emite (una sola vez) el token PRO de un pago aprobado.
+ * El vencimiento se ancla a `approvedAt` —nunca a "ahora"— para que consultar
+ * el estado repetidamente no renueve el pase.
+ */
+function ensurePaymentEntitlement(payment: PendingPayment): boolean {
+  if (payment.proToken) return false;
+  const hours = PLAN_DURATION_HOURS[payment.plan] ?? null;
+  const base = payment.approvedAt ?? payment.createdAt ?? Date.now();
+  const expiresAt = hours === null ? null : base + hours * 3600 * 1000;
+  const token = createPurchaseApprovedToken(expiresAt);
+  payment.proToken = token;
+  payment.proExpiresAt = expiresAt;
+  payment.proSignedExpiry = expiresAt === null ? null : createSignedExpiry(token, expiresAt);
+  return true;
+}
+
 export const checkPaymentStatusServerFn = createServerFn({ method: "POST" })
   .validator((input: { paymentId: string }) => input)
   .handler(async ({ data }) => {
@@ -858,23 +883,13 @@ export const checkPaymentStatusServerFn = createServerFn({ method: "POST" })
     let expiresAt: number | null = null;
 
     if (payment.status === "approved") {
-      token = createPurchaseApprovedToken();
-      let durationHours: number | null = null;
-
-      if (payment.plan === "day") {
-        durationHours = 24;
-      } else if (payment.plan === "weekend") {
-        durationHours = 72;
-      } else if (payment.plan === "month") {
-        durationHours = 24 * 30; // 720h (30 días)
-      } else if (payment.plan === "founder" || payment.plan === "lifetime") {
-        durationHours = null; // Permanente de por vida
+      // Se emite una única vez (el vencimiento queda anclado a approvedAt).
+      if (ensurePaymentEntitlement(payment)) {
+        await persistVaultSnapshot();
       }
-
-      if (durationHours !== null) {
-        expiresAt = Date.now() + durationHours * 3600 * 1000;
-        signedExpiry = createSignedExpiry(token, expiresAt);
-      }
+      token = payment.proToken ?? null;
+      signedExpiry = payment.proSignedExpiry ?? null;
+      expiresAt = payment.proExpiresAt ?? null;
     }
 
     return {
@@ -925,6 +940,8 @@ export const reviewPaymentServerFn = createServerFn({ method: "POST" })
     if (data.action === "approve") {
       payment.status = "approved";
       payment.approvedAt = Date.now();
+      // Emite el token PRO y su vencimiento una sola vez, anclado a approvedAt.
+      ensurePaymentEntitlement(payment);
 
       if (isFounder) {
         // Auto-generar y asignar su certificado de Miembro Fundador + 5 Pases de Invitación

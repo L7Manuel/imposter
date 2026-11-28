@@ -90,6 +90,10 @@ export interface PendingPayment {
   discordContact?: string | undefined;
   founderNumber?: number | undefined;
   founderCode?: string | undefined;
+  /** Token PRO emitido una sola vez al aprobar; no se regenera en cada consulta. */
+  proToken?: string | undefined;
+  proExpiresAt?: number | null | undefined;
+  proSignedExpiry?: string | null | undefined;
 }
 
 export interface PaymentConfig {

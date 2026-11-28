@@ -180,6 +180,7 @@ export function getDecryptedVipCodes(ceoToken: string | null): string[] {
 const VIP_SINGLE_USE_HASHES = new Set(VIP_COUPON_HASHES_ORDERED);
 
 export const TESTER_COUPON_DURATION_MS = 48 * 60 * 60 * 1000; // 48 horas (2 días)
+export const GUEST_PASS_DURATION_MS = 24 * 60 * 60 * 1000; // 24 horas (Pase Embajador)
 
 export const STORAGE_KEYS = {
   CEO_TOKEN: "impostor-ceo-token",
@@ -491,7 +492,7 @@ export function verifyAccessCode(
         meta: { founderNumber: guestCheck.founderNumber, passIndex: guestCheck.passIndex },
       };
     }
-    const approvedToken = createPurchaseApprovedToken();
+    const approvedToken = createPurchaseApprovedToken(Date.now() + GUEST_PASS_DURATION_MS);
     return {
       role: "guest_pass",
       token: approvedToken,
@@ -505,9 +506,41 @@ export function verifyAccessCode(
 
 const PURCHASE_SEAL = "imposter-approved-purchase-v1-seal-7a8b9c:";
 
-export function createPurchaseApprovedToken(): string {
-  const seed = sha256(Math.random().toString() + Date.now().toString());
-  const body = seed.slice(8);
+export interface PurchaseTokenInfo {
+  /** true = vitalicio, false = con vencimiento, null = formato antiguo (sin datos embebidos). */
+  permanent: boolean | null;
+  /** ms de expiración para tokens con vencimiento; null en vitalicios/antiguos. */
+  expiresAt: number | null;
+}
+
+function randomHex(length: number): string {
+  const bytes = new Uint8Array(Math.ceil(length / 2));
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  let out = "";
+  for (const byte of bytes) out += byte.toString(16).padStart(2, "0");
+  return out.slice(0, length);
+}
+
+/**
+ * Crea un token de compra firmado que lleva su propio vencimiento.
+ *
+ * Formato (64 hex): `check(8) + kind(1) + expiraciónUnix(10) + nonce(45)`.
+ * - kind "P": vitalicio (sin vencimiento).
+ * - kind "T": vencimiento embebido (segundos Unix en hexadecimal).
+ *
+ * Los tokens antiguos son 64 hex sin marca; su `body[0]` siempre es un dígito
+ * hexadecimal, así que "P"/"T" los distingue sin ambigüedad y siguen siendo válidos.
+ */
+export function createPurchaseApprovedToken(expiresAt: number | null = null): string {
+  const permanent = expiresAt === null;
+  const kind = permanent ? "P" : "T";
+  const seconds = permanent ? 0 : Math.floor(expiresAt / 1000);
+  const expiryHex = Math.max(0, seconds).toString(16).padStart(10, "0").slice(-10);
+  const body = `${kind}${expiryHex}${randomHex(45)}`;
   const check = sha256(PURCHASE_SEAL + body).slice(0, 8);
   return check + body;
 }
@@ -518,6 +551,31 @@ export function isPurchaseApprovedToken(token: string | null): boolean {
   const body = token.slice(8);
   const expected = sha256(PURCHASE_SEAL + body).slice(0, 8);
   return check === expected;
+}
+
+export function parsePurchaseToken(token: string | null): PurchaseTokenInfo | null {
+  if (!token || typeof token !== "string" || token.length !== 64) return null;
+  const kind = token[8];
+  if (kind !== "P" && kind !== "T") {
+    return { permanent: null, expiresAt: null };
+  }
+  if (kind === "P") {
+    return { permanent: true, expiresAt: null };
+  }
+  const seconds = parseInt(token.slice(9, 19), 16);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  return { permanent: false, expiresAt: seconds * 1000 };
+}
+
+/** Marca local que acredita que este dispositivo ya canjeó un Pase Fundador vitalicio. */
+function hasLocalFounderMarker(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FOUNDER_NUMBER);
+    return raw !== null && Number.isFinite(Number(raw)) && Number(raw) > 0;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -544,17 +602,32 @@ export function isValidStoredToken(
     return true;
   }
   if (isPurchaseApprovedToken(token)) {
+    const info = parsePurchaseToken(token);
+    if (info?.permanent === false) {
+      // Token con vencimiento embebido: ya no depende de localStorage.
+      if (!info.expiresAt || now >= info.expiresAt) return false;
+      if (rawExpiry) {
+        const signed = parseSignedExpiry(token, rawExpiry);
+        if (!signed || now >= signed) return false;
+      }
+      return true;
+    }
+    if (info?.permanent === true) {
+      return true;
+    }
+    // Token del formato antiguo (sin vencimiento embebido): la única prueba de
+    // vigencia es la expiración firmada. Sin ella solo se acepta en un
+    // dispositivo ya marcado como fundador vitalicio (grandfathering).
     if (rawExpiry) {
       const expiresAt = parseSignedExpiry(token, rawExpiry);
       if (!expiresAt) return false;
-      if (now >= expiresAt) return false;
+      return now < expiresAt;
     }
-    return true;
+    return hasLocalFounderMarker();
   }
   if (VIP_SINGLE_USE_HASHES.has(verifyHash)) {
-    // Si no hay rawExpiry, no podemos verificar la fecha de expiración,
-    // así que consideramos el token como válido (no podemos probar que expiró)
-    if (!rawExpiry) return true;
+    // Los cupones de tester siempre son de 48h: sin expiración firmada no son válidos.
+    if (!rawExpiry) return false;
     const expiresAt = parseSignedExpiry(token, rawExpiry);
     if (!expiresAt) return false;
     // Bloquear si ya pasaron las 48h o si la fecha excede el límite máximo permitido
